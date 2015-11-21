@@ -14,6 +14,7 @@ public class Other {
 	}
 
 	private static int countNumLines(File root, Filter<File> filter) throws IOException {
+		System.out.println("Github push test");
 		int sum = 0;
 		final Stack<File> stack = new Stack<>();
 		stack.push(root);
