@@ -22,6 +22,7 @@ import org.objectweb.asm.tree.FieldNode;
 import org.objectweb.asm.tree.FrameNode;
 import org.objectweb.asm.tree.InnerClassNode;
 import org.objectweb.asm.tree.InvokeDynamicInsnNode;
+import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.LineNumberNode;
 import org.objectweb.asm.tree.LocalVariableNode;
 import org.objectweb.asm.tree.MethodInsnNode;
@@ -304,7 +305,7 @@ public class NameObfuscatorBeta extends Obfuscator {
 		populateFieldNameRemapping();
 		populateMethodNameRemapping();
 	}
-
+	
 	@Override
 	public void obfuscate() {
 		fillObfuscationMaps();
@@ -453,6 +454,10 @@ public class NameObfuscatorBeta extends Obfuscator {
 								tin.desc = obfuscatePackage(tin.desc) + obfuscatedInternalName;
 							}
 						}
+						break;
+					case AbstractInsnNode.LDC_INSN:
+						LdcInsnNode lin = (LdcInsnNode) ain;
+						//TODO
 						break;
 					case AbstractInsnNode.FRAME:
 						FrameNode fn = (FrameNode) ain;

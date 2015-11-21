@@ -5,10 +5,10 @@ import org.objectweb.asm.tree.AbstractInsnNode;
 
 public final class JavaStack {
 	
-	private static final int MAX_STACK_SIZE = 300;
+	private static final int DEFAULT_SIZE = 8;
 
-	private final Temporary[] stack;
-	private final AbstractInsnNode[] definingInstructions;
+	private Temporary[] stack;
+	private AbstractInsnNode[] definingInstructions;
 	private int index = 0;
 
 	private JavaStack(Temporary[] stack, AbstractInsnNode[] definingInstructions, int index){
@@ -17,16 +17,26 @@ public final class JavaStack {
 		this.index = index;
 	}
 
-	public JavaStack(int maxSize){
-		if(maxSize == 0){
+	public JavaStack(){
+		//if(maxSize == 0){
 			//System.err.println("Warning: creating stack with stack size of 0. Default to MAX_STACK_SIZE = " + MAX_STACK_SIZE);
-			maxSize = MAX_STACK_SIZE;
+			//maxSize = MAX_STACK_SIZE;
+		//}
+		stack = new Temporary[DEFAULT_SIZE];
+		definingInstructions = new AbstractInsnNode[DEFAULT_SIZE];
+	}
+	
+	private void ensureCapacity(int newSize){
+		if(newSize >= stack.length){
+			Temporary[] newStack = new Temporary[stack.length * 2];
+			System.arraycopy(stack, 0, newStack, 0, stack.length);
+			AbstractInsnNode[] newDefiningInstructions = new AbstractInsnNode[definingInstructions.length * 2];
+			System.arraycopy(definingInstructions, 0, newDefiningInstructions, 0, definingInstructions.length);;
 		}
-		stack = new Temporary[maxSize];
-		definingInstructions = new AbstractInsnNode[maxSize];
 	}
 
 	public void push(Temporary t, AbstractInsnNode definingInstruction){
+		ensureCapacity(index);
 		stack[index] = t;
 		definingInstructions[index] = definingInstruction;
 		index++;
@@ -44,7 +54,8 @@ public final class JavaStack {
 		return stack[index - 1];
 	}
 
-	public void insertElementAt(Temporary value, AbstractInsnNode defining, int indexToInsert) {
+	public void insertElementAt(Temporary value, AbstractInsnNode defining, int indexToInsert){
+		ensureCapacity(index);
 		for(int i = index; i > indexToInsert; i--){
 			stack[i] = stack[i - 1];
 			definingInstructions[i] = definingInstructions[i - 1];

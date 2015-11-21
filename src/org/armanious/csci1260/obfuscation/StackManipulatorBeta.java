@@ -97,30 +97,36 @@ public class StackManipulatorBeta implements Opcodes {
 		System.out.println("Total count of targets: " + totalCount);
 	}
 
-	private void add(InsnList list, int...opcodes){
+	private static void add(InsnList list, int...opcodes){
 		for(int opcode : opcodes){
 			list.add(new InsnNode(opcode));
 		}
 	}
 
 	int i = 0;
-	final Random r = new Random();
-	private Tuple<InsnList, Integer> generateInsertion(){
+	private static final Random r = new Random();
+	private static Tuple<InsnList, Tuple<Integer, Integer>> generateInsertion(){
 		//TODO copy random parts of code from other parts of the project?
 		final InsnList toReturn = new InsnList();
 		final int sizeOfReturn = r.nextInt(3);
+		int maxStackIncrement;
 		switch(sizeOfReturn){
 		case 0:
 			add(toReturn, ACONST_NULL, DUP, POP2);
+			maxStackIncrement = 2;
 			break;
 		case 1:
 			add(toReturn, ICONST_M1, ICONST_2, IMUL);
+			maxStackIncrement = 2;
 			break;
 		case 2:
 			add(toReturn, DCONST_1, DCONST_0, DADD);
+			maxStackIncrement = 4;
 			break;
+		default:
+			throw new RuntimeException();
 		}
-		return new Tuple<>(toReturn, sizeOfReturn);
+		return new Tuple<>(toReturn, new Tuple<>(sizeOfReturn, maxStackIncrement));
 	}
 
 	private void manipulateStackBeforeAndAfterTemporary(MethodInformation mi, Temporary t, ArrayList<Temporary> criticalTemporaries, ArrayList<AbstractInsnNode> block){
@@ -130,11 +136,18 @@ public class StackManipulatorBeta implements Opcodes {
 		// that criticalTemporaries is sorted in the order they are pushed onto the stack
 		// that block is sorted in the order the instructions are executed
 		
-		final Tuple<InsnList, Integer> toInsertBefore = generateInsertion();
+		final Tuple<InsnList, Tuple<Integer, Integer>> toInsertBefore = generateInsertion();
 		final int sizeOfResult = t.getType().getSize();
 		
 		final InsnList toAddAfter = new InsnList();
-		final int strategy = toInsertBefore.val2 * 10 + sizeOfResult;
+		final int strategy = toInsertBefore.val2.val1 * 10 + sizeOfResult;
+		//sizeOfReturn * 10 + sizeOfResult; sizeOfReturn is first digit; result is second
+		
+
+		System.err.println("Stack at end of t: " + mi.statePerInsn.get(t.getDeclaration()).val1);
+		System.err.println("\n");
+		
+		
 		switch(strategy){
 		case 0://00
 		case 1://01
@@ -159,9 +172,21 @@ public class StackManipulatorBeta implements Opcodes {
 			add(toAddAfter, DUP2_X2, POP2, POP2);
 			break;
 		}
-		mi.mn.maxStack += toInsertBefore.val2;
+		
+		final JavaStack stackBefore = mi.statePerInsn.get(block.get(0)).val1;
+		if(toInsertBefore.val2.val2 > mi.mn.maxStack - stackBefore.size()){
+			mi.mn.maxStack += toInsertBefore.val2.val2 - (mi.mn.maxStack - stackBefore.size());
+		}
+		
+		final JavaStack stackAfter = mi.statePerInsn.get(block.get(block.size() - 1)).val1;
+		if(toInsertBefore.val2.val2 > mi.mn.maxStack - stackAfter.size()){
+			mi.mn.maxStack += toInsertBefore.val2.val2 - (mi.mn.maxStack - stackBefore.size());
+		}
+		
 		mi.mn.instructions.insertBefore(block.get(0), toInsertBefore.val1);
 		mi.mn.instructions.insert(block.get(block.size() - 1), toAddAfter);
+		
+		System.err.println("Max stack: " + mi.mn.maxStack);
 	}
 	
 	private int sizeBetweenInclusive(ArrayList<Temporary> critTemporaries, int f, int s){
@@ -378,6 +403,10 @@ public class StackManipulatorBeta implements Opcodes {
 	}
 	
 	private void manipulateStackSwappingTemporaryOperands(MethodInformation mi, Temporary t, ArrayList<Temporary> criticalTemporaries, ArrayList<AbstractInsnNode> block){
+
+		
+		if(t instanceof ConstructorTemporary) return;
+		
 		int numUnique = 0;
 		outer: for(int i = 0; i < criticalTemporaries.size(); i++){
 			for(int j = i + 1; j < criticalTemporaries.size(); j++){
@@ -396,14 +425,17 @@ public class StackManipulatorBeta implements Opcodes {
 		Temporary first = criticalTemporaries.get(firstIndex);
 		Temporary second;
 		int sizeBetweenInclusive;
-		do{
+		while(true){
 			secondIndex = r.nextInt(criticalTemporaries.size()); //more efficient way? oh well...
+			if(secondIndex == firstIndex) continue;
 			second = criticalTemporaries.get(secondIndex);
 			if(first.getType().getSize() == 2 && second.getType().getSize() == 2){
 				System.err.println("debug");
 			}
 			sizeBetweenInclusive = sizeBetweenInclusive(criticalTemporaries, firstIndex, secondIndex);
-		}while(firstIndex == secondIndex || first == second || sizeBetweenInclusive > 4);
+			if(sizeBetweenInclusive > 4) continue;
+			break;
+		}
 		//size MUST be less than or equal to 4
 		
 		if(firstIndex > secondIndex){
@@ -418,8 +450,6 @@ public class StackManipulatorBeta implements Opcodes {
 
 		final ArrayList<AbstractInsnNode> F = first.getContiguousBlock();
 		final ArrayList<AbstractInsnNode> S = second.getContiguousBlock();
-		
-		if(t instanceof ConstructorTemporary) return;
 		
 		swap(F, S);
 		

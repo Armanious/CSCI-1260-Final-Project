@@ -235,7 +235,7 @@ public class Entry {
 			if(!fileForClass.getParentFile().exists()){
 				fileForClass.getParentFile().mkdirs();
 			}
-			final ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES){
+			final ClassWriter cw = new ClassWriter(0){
 				private final Map<String, ClassNode> map = classDatas.stream().collect(Collectors.toMap((ClassNode cn) -> cn.name, (cn) -> cn));
 				private final Map<String, String[]> classHierarchyCache = new HashMap<>();
 				//TODO replace with DataManager

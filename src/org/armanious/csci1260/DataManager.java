@@ -2140,7 +2140,7 @@ public class DataManager {
 			toExecute.push(getFirstBlock());
 
 			//Stack<Temporary> temporariesStack = new Stack<>();
-			JavaStack stack = new JavaStack(mn.maxStack);
+			JavaStack stack = new JavaStack();
 			ArrayList<Temporary> locals = new ArrayList<>();
 			Type[] types = Type.getArgumentTypes(mn.desc);
 			if(Modifier.isStatic(mn.access)){
@@ -2159,7 +2159,9 @@ public class DataManager {
 					}
 				}
 			}
-
+			
+			int maxStack = 0;
+			
 			for(int i = locals.size(); i < mn.maxLocals; i++){
 				//fill rest of locals array with nulls so when we set we don't get an exception
 				locals.add(null);
@@ -2820,6 +2822,9 @@ public class DataManager {
 							}
 							temporaries.add(toPush); //we want to add methods that return VOID to temporaries for StackManipulator
 						}
+						if(stack.size() > maxStack){
+							maxStack = stack.size();
+						}
 						statePerInsn.put(executingInstruction, new Tuple<>(stack.clone(),
 								locals.toArray(new Temporary[locals.size()])));
 						if(popped != null){
@@ -2903,8 +2908,13 @@ public class DataManager {
 				log.finest("Execution queue after " + executingBlock + ": " + toExecute);;
 
 			}
+			mn.maxStack = maxStack;
 			log.finest("Finished symbolic execution.");
 		}
+		
+		
+		
+		
 	}
 
 	public final ArrayList<ClassNode> classes;
