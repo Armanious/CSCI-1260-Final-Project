@@ -31,7 +31,9 @@ public final class JavaStack {
 			Temporary[] newStack = new Temporary[stack.length * 2];
 			System.arraycopy(stack, 0, newStack, 0, stack.length);
 			AbstractInsnNode[] newDefiningInstructions = new AbstractInsnNode[definingInstructions.length * 2];
-			System.arraycopy(definingInstructions, 0, newDefiningInstructions, 0, definingInstructions.length);;
+			System.arraycopy(definingInstructions, 0, newDefiningInstructions, 0, definingInstructions.length);
+			stack = newStack;
+			definingInstructions = newDefiningInstructions;
 		}
 	}
 

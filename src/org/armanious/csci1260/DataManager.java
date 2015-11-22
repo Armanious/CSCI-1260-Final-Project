@@ -89,11 +89,11 @@ public class DataManager {
 		}
 
 		protected abstract void addRelevantInstructionsToList(ArrayList<AbstractInsnNode> list);
-		
+
 		protected void addCriticalTemporariesToList(ArrayList<Temporary> list){
-			
+
 		}
-		
+
 		public ArrayList<Temporary> getCriticalTemporaries(){
 			ArrayList<Temporary> t = new ArrayList<Temporary>();
 			addCriticalTemporariesToList(t);
@@ -257,7 +257,7 @@ public class DataManager {
 				getObjectRef().addRelevantInstructionsToList(list);
 			}
 		}
-		
+
 		@Override
 		protected void addCriticalTemporariesToList(ArrayList<Temporary> list) {
 			if(getValue() != null){
@@ -269,7 +269,7 @@ public class DataManager {
 				//getObjectRef().addCriticalTemporariesToList(list);
 			}
 		}
-		
+
 		@Override
 		protected Temporary clone() {
 			return new FieldTemporary(parent, value, getType());
@@ -351,7 +351,7 @@ public class DataManager {
 				t.addRelevantInstructionsToList(list);
 			}
 		}
-		
+
 		@Override
 		protected void addCriticalTemporariesToList(ArrayList<Temporary> list) {
 			for(Temporary t : args){
@@ -368,10 +368,10 @@ public class DataManager {
 	}
 
 	public static class InvokeSpecialTemporary extends MethodInvocationTemporary {
-		
+
 		private final boolean isCallingSuper;
 
-		public InvokeSpecialTemporary(AbstractInsnNode insn, Temporary[] args, boolean hasSideEffects, boolean isCallingSuper) {
+		public InvokeSpecialTemporary(AbstractInsnNode insn, Temporary[] args, String name, Type defaultReturnType, boolean hasSideEffects, boolean isCallingSuper) {
 			//args will include the ObjectInstance Temporary
 			/*
 			 * new X  //X
@@ -380,10 +380,10 @@ public class DataManager {
 			 * invokespecial X //POPS ALL 3; pushed Constructor(X)
 			 * astore 2 //a2 = Constructor(X) empty stack
 			 */
-			super(insn, args, args[0].getType().getInternalName(), "<init>", isCallingSuper ? Type.VOID_TYPE : args[0].getType(), hasSideEffects);
+			super(insn, args, args[0].getType().getInternalName(), name, name.equals("<init>") ? (isCallingSuper ? Type.VOID_TYPE : args[0].getType()) : defaultReturnType, hasSideEffects);
 			this.isCallingSuper = isCallingSuper;
 		}
-		
+
 		public boolean isCallingSuper(){
 			return isCallingSuper;
 		}
@@ -395,7 +395,7 @@ public class DataManager {
 
 		@Override
 		protected Temporary clone() {
-			return new InvokeSpecialTemporary(getDeclaration(), args, hasSideEffects, isCallingSuper);
+			return new InvokeSpecialTemporary(getDeclaration(), args, name, getType(), hasSideEffects, isCallingSuper);
 		}
 
 	}
@@ -539,7 +539,7 @@ public class DataManager {
 			arrayRef.addRelevantInstructionsToList(list);
 			index.addRelevantInstructionsToList(list);
 		}
-		
+
 		@Override
 		protected void addCriticalTemporariesToList(ArrayList<Temporary> list) {
 			list.add(arrayRef);
@@ -643,7 +643,7 @@ public class DataManager {
 			lhs.addRelevantInstructionsToList(list);
 			rhs.addRelevantInstructionsToList(list);
 		}
-		
+
 		@Override
 		protected void addCriticalTemporariesToList(ArrayList<Temporary> list) {
 			list.add(lhs);
@@ -691,7 +691,7 @@ public class DataManager {
 			list.add(getDeclaration());
 			tmp.addRelevantInstructionsToList(list);
 		}
-		
+
 		@Override
 		protected void addCriticalTemporariesToList(ArrayList<Temporary> list) {
 			list.add(tmp);
@@ -767,7 +767,7 @@ public class DataManager {
 			list.add(getDeclaration());
 			tmp.addRelevantInstructionsToList(list);
 		}
-		
+
 		@Override
 		protected void addCriticalTemporariesToList(ArrayList<Temporary> list) {
 			list.add(tmp);
@@ -818,7 +818,7 @@ public class DataManager {
 			rhs.addRelevantInstructionsToList(list);
 			lhs.addRelevantInstructionsToList(list);
 		}
-		
+
 		@Override
 		protected void addCriticalTemporariesToList(ArrayList<Temporary> list) {
 			list.add(lhs);
@@ -835,7 +835,7 @@ public class DataManager {
 	}
 
 	public static class ObjectInstanceTemporary extends Temporary {
-		
+
 		private static HashMap<Object, Boolean> isDupped = new HashMap<>();
 
 		private final Object fakeValue;
@@ -858,11 +858,11 @@ public class DataManager {
 		public boolean isDupped(){
 			return isDupped.get(fakeValue);
 		}
-		
+
 		public void setIsDupped(boolean newIsDupped){
 			isDupped.put(fakeValue, newIsDupped);
 		}
-		
+
 		@Override
 		public boolean equals(Object o) {
 			return o instanceof ObjectInstanceTemporary && (((ObjectInstanceTemporary)o).fakeValue == fakeValue);
@@ -936,7 +936,7 @@ public class DataManager {
 				t.addRelevantInstructionsToList(list);
 			}
 		}
-		
+
 		@Override
 		protected void addCriticalTemporariesToList(ArrayList<Temporary> list) {
 			for(Temporary t : dimensionCounts){
@@ -984,7 +984,7 @@ public class DataManager {
 			list.add(getDeclaration());
 			arrayRef.addRelevantInstructionsToList(list);
 		}
-		
+
 		@Override
 		protected void addCriticalTemporariesToList(ArrayList<Temporary> list) {
 			list.add(arrayRef);
@@ -1031,13 +1031,13 @@ public class DataManager {
 			list.add(getDeclaration());
 			objectRef.addRelevantInstructionsToList(list);
 		}
-		
+
 		@Override
 		protected void addCriticalTemporariesToList(ArrayList<Temporary> list) {
 			list.add(objectRef);
 			//objectRef.addCriticalTemporariesToList(list);
 		}
-		
+
 		@Override
 		protected Temporary clone() {
 			return new InstanceofOperatorTemporary(getDeclaration(), objectRef, toCheck);
@@ -1128,7 +1128,7 @@ public class DataManager {
 				}
 			}*/
 		}
-		
+
 		@Override
 		protected void addCriticalTemporariesToList(ArrayList<Temporary> list) {
 			for(Temporary t : mergedTemporaries){
@@ -2151,25 +2151,19 @@ public class DataManager {
 			JavaStack stack = new JavaStack();
 			ArrayList<Temporary> locals = new ArrayList<>();
 			Type[] types = Type.getArgumentTypes(mn.desc);
-			if(Modifier.isStatic(mn.access)){
-				for(int i = 0; i < types.length; i++){
-					locals.add(new ParameterTemporary(mn, i, types[i]));
-					if(types[i] == Type.DOUBLE_TYPE || types[i] == Type.LONG_TYPE){
-						locals.add(null);//takes up 2 words
-					}
-				}
-			}else{
-				locals.add(new ParameterTemporary(mn, -1, Type.getType(methodNodeToOwnerMap.get(mn).name)));
-				for(int i = 0; i < types.length; i++){
-					locals.add(new ParameterTemporary(mn, i, types[i]));
-					if(types[i] == Type.DOUBLE_TYPE || types[i] == Type.LONG_TYPE){
-						locals.add(null);//takes up 2 words
-					}
+			if(!Modifier.isStatic(mn.access)){
+				final ClassNode owner = methodNodeToOwnerMap.get(mn);
+				locals.add(new ParameterTemporary(mn, -1, Type.getType('L' + owner.name + ';')));
+			}
+			for(int i = 0; i < types.length; i++){
+				locals.add(new ParameterTemporary(mn, i, types[i]));
+				if(types[i] == Type.DOUBLE_TYPE || types[i] == Type.LONG_TYPE){
+					locals.add(null);//takes up 2 words
 				}
 			}
-			
+
 			int maxStack = 0;
-			
+
 			for(int i = locals.size(); i < mn.maxLocals; i++){
 				//fill rest of locals array with nulls so when we set we don't get an exception
 				locals.add(null);
@@ -2186,14 +2180,14 @@ public class DataManager {
 			}
 
 			log.finest("Locals before first instruction: " + locals);
-			
+
 
 
 
 			Textifier t = new Textifier();
 			mn.accept(new TraceMethodVisitor(t));
 			Object[] instructionsInText = t.text.toArray(new Object[t.text.size()]);
-			
+
 			while(!toExecute.isEmpty()){
 				BasicBlock executingBlock = toExecute.removeFirst();
 				executed.add(executingBlock);
@@ -2250,7 +2244,7 @@ public class DataManager {
 				//execute
 				final Iterator<AbstractInsnNode> insnsOfBlock = executingBlock.instructionIteratorForward();
 				AbstractInsnNode executingInstruction = null;
-				
+
 				try{
 					while(insnsOfBlock.hasNext()){
 						executingInstruction = insnsOfBlock.next();
@@ -2683,9 +2677,15 @@ public class DataManager {
 						case INVOKESPECIAL:
 							MethodInsnNode min = (MethodInsnNode) executingInstruction;
 							Type[] args = Type.getArgumentTypes(min.desc);
-							Temporary instance = stack.elementAt(stack.size() - args.length - 1);
-							
-							if(instance instanceof ObjectInstanceTemporary && ((ObjectInstanceTemporary)instance).isDupped()){
+							Temporary instance;
+							if((stack.size() - args.length - 1) >= 0){
+								instance = stack.elementAt(stack.size() - args.length - 1);
+							}else{
+								instance = null;
+							}
+
+							if(instance != null && instance instanceof ObjectInstanceTemporary && ((ObjectInstanceTemporary)instance).isDupped()
+									&& min.name.equals("<init>")){
 								/*
 								 * What it is:
 								 * new X (X); push 1
@@ -2704,20 +2704,12 @@ public class DataManager {
 								for(int i = 0; i < popped.length; i++){
 									popped[popped.length - i - 1] = stack.pop();
 								}
-								toPush = new InvokeSpecialTemporary(executingInstruction, popped, true, false);
+								toPush = new InvokeSpecialTemporary(executingInstruction, popped, min.name, Type.VOID_TYPE, true, false);
 								((ObjectInstanceTemporary)instance).setIsDupped(false);
+								break;
 							}else{
-								/*
-								 * calling super.<init>
-								 */
-								popped = new Temporary[args.length + 1]; //1 for "this",
-								for(int i = 0; i < popped.length; i++){
-									popped[popped.length - i - 1] = stack.pop();
-								}
-								toPush = new InvokeSpecialTemporary(executingInstruction, popped, true, true);
+								//fallthrough
 							}
-							break;
-							//fallthrough
 						case INVOKEVIRTUAL:
 						case INVOKESTATIC:
 						case INVOKEINTERFACE:
@@ -2928,10 +2920,10 @@ public class DataManager {
 			mn.maxStack = maxStack;
 			log.finest("Finished symbolic execution.");
 		}
-		
-		
-		
-		
+
+
+
+
 	}
 
 	public final ArrayList<ClassNode> classes;
