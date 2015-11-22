@@ -21,7 +21,7 @@ import org.armanious.csci1260.obfuscation.DataCompressionObfuscator;
 import org.armanious.csci1260.obfuscation.ObfuscationManager;
 import org.armanious.csci1260.optimization.OptimizationManager;
 import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.ClassWriter;a
+import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.tree.ClassNode;
 
 public class Entry {
@@ -60,15 +60,16 @@ public class Entry {
 		System.out.println(Arrays.toString(args));
 
 		if(args == null || args.length == 0){
-			final String PROGRAM_TO_TEST_ON = "CSCI 1260 Final Project";
+			final String PROGRAM_TO_TEST_ON = "CSCI 1260 Tests";
 			File f = new File(new File(System.getProperty("user.dir")).getParentFile(), PROGRAM_TO_TEST_ON + File.separator + "bin");
 			args = new String[]{f.toString(), 
-					"run_output=true",
-					"obfuscation.compress_output=false",
-					"obfuscation.main_class=org.armanious.csci1260.Entry",
-					//"obfuscation.name_pattern=ATCG",
-					//"obfuscation.name_length=4",
-			/*"obfuscation.use_obfuscation=false"*/};
+					"run_output=false",
+					"obfuscation.compress_output=true",
+					"obfuscation.main_class=test.hi.Hello",
+					"obfuscation.name_pattern=lI",
+					"obfuscation.name_length=10",
+					"obfuscation.use_obfuscation=true",
+					"optimization.use_optimization=true"};
 		}
 
 		if(args == null || args.length == 0) printUsage();
