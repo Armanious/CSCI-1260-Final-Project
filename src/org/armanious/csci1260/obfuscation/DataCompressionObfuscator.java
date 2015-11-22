@@ -1,63 +1,28 @@
-package org.armanious.csci1260;
+package org.armanious.csci1260.obfuscation;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import org.armanious.csci1260.CustomClassLoader;
+import org.armanious.csci1260.DataManager;
 import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
-import org.objectweb.asm.MethodVisitor;
-import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
-public class GoCrazyWildAndFree {
+public class DataCompressionObfuscator {
 	
-	private static class FilterClassVisitor extends ClassVisitor {
-
-		private final String main_class;
-		
-		public FilterClassVisitor(ClassVisitor owner, String main_class) {
-			super(Opcodes.ASM5, owner);
-			this.main_class = main_class;
-		}
-		
-		@Override
-		public MethodVisitor visitMethod(int access, String name, String desc, String signature, String[] exceptions) {
-			return new FilterMethodVisitor(super.visitMethod(access, name, desc, signature, exceptions), main_class);
-		}
-		
-	}
+	//TODO: Run StackManipulator and NameObfuscator obfuscations on this class itself
 	
-	private static class FilterMethodVisitor extends MethodVisitor {
-		
-		private final String main_class;
-		
-		public FilterMethodVisitor(MethodVisitor owner, String main_class){
-			super(Opcodes.ASM5, owner);
-			this.main_class = main_class;
-		}
-		
-		@Override
-		public void visitLdcInsn(Object cst) {
-			if(cst instanceof String && ((String)cst).equals("REPLACE ME WITH NAME OF MAIN CLASS")){
-				super.visitLdcInsn(main_class);
-			}
-			super.visitLdcInsn(cst);
-		}
-		
-	}
-
 	public static void goCrazyWildAndFree(final DataManager dm, String main_class, File output_directory) {
 		try {
 			main_class = main_class.replace('/', '.'); //convert to binary
@@ -68,10 +33,10 @@ public class GoCrazyWildAndFree {
 			cr.accept(new FilterClassVisitor(cw, main_class), 0);
 			
 			final byte[] crazyData = cw.toByteArray();*/
-			final ClassReader cr = new ClassReader(forlolz.Crazy.class.getName());
-			final ClassNode wild = new ClassNode();
-			cr.accept(wild, 0);
-			for(MethodNode mn : wild.methods){
+			final ClassReader cr = new ClassReader(CustomClassLoader.class.getName());
+			final ClassNode classLoaderCn = new ClassNode();
+			cr.accept(classLoaderCn, 0);
+			for(MethodNode mn : classLoaderCn.methods){
 				if(mn.name.equals("main")){
 					for(AbstractInsnNode ain = mn.instructions.getFirst(); ain != null; ain = ain.getNext()){
 						if(ain instanceof LdcInsnNode){
@@ -84,23 +49,23 @@ public class GoCrazyWildAndFree {
 				}
 			}
 			final ClassWriter free = new ClassWriter(0);
-			wild.accept(free);
+			classLoaderCn.accept(free);
 			
-			final byte[] crazyData = free.toByteArray();
+			final byte[] data = free.toByteArray();
 			
 			final Manifest manifest = new Manifest(new ByteArrayInputStream(("Manifest-Version: 1.0\n" +
 					"Created-By: 1.7.0_06\n"
-					+ "Main-Class: forlolz.Crazy\n").getBytes()));
+					+ "Main-Class: CustomClassLoader\n").getBytes()));
 			final File outputFile = new File(output_directory, "obfuscated.jar");
 			output_directory.mkdirs();
 			outputFile.createNewFile();
 			final JarOutputStream jos = new JarOutputStream(new FileOutputStream(outputFile), manifest);
 			
-			jos.putNextEntry(new ZipEntry("forlolz/Crazy.class"));
-			jos.write(crazyData, 0, crazyData.length);
+			jos.putNextEntry(new ZipEntry(classLoaderCn.name + ".class"));
+			jos.write(data, 0, data.length);
 			jos.closeEntry();
 			
-			jos.putNextEntry(new ZipEntry("dontlookatme"));
+			jos.putNextEntry(new ZipEntry("inner"));
 			final ZipOutputStream zos = new ZipOutputStream(jos);
 			for(ClassNode cn : dm.classes){
 				zos.putNextEntry(new ZipEntry(cn.name.replace('/', '.')));

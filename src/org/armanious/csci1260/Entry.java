@@ -18,6 +18,7 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
 
+import org.armanious.csci1260.obfuscation.DataCompressionObfuscator;
 import org.armanious.csci1260.obfuscation.ObfuscationManager;
 import org.armanious.csci1260.optimization.OptimizationManager;
 import org.objectweb.asm.ClassReader;
@@ -193,7 +194,7 @@ public class Entry {
 		//The name of the main_class may have been obfuscated; instead we keep track of the ClassNode
 
 		if(compress_output){
-			GoCrazyWildAndFree.goCrazyWildAndFree(dm, main_class_reference.name, output_directory);
+			DataCompressionObfuscator.goCrazyWildAndFree(dm, main_class_reference.name, output_directory);
 		}else{
 			if(isJar){
 				outputClassesAsJar(classDatas, file.getName().replace(".jar", "_obfuscated.jar"), output_directory);

@@ -10,7 +10,6 @@ import java.util.Random;
 import java.util.TreeMap;
 
 import org.armanious.csci1260.DataManager;
-import org.armanious.csci1260.DataManager.InvokeSpecialTemporary;
 import org.armanious.csci1260.DataManager.MethodInformation;
 import org.armanious.csci1260.DataManager.Temporary;
 import org.armanious.csci1260.JavaStack;

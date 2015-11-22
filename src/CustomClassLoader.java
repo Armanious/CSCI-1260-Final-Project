@@ -1,4 +1,4 @@
-package forlolz;
+
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -8,27 +8,23 @@ import java.util.HashMap;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-public class Crazy extends ClassLoader {
+public class CustomClassLoader extends ClassLoader {
 
 	public static void main(String[] args) throws IOException, ReflectiveOperationException {
-		InputStream resource = ClassLoader.getSystemResourceAsStream("dontlookatme");
+		InputStream resource = ClassLoader.getSystemResourceAsStream("inner");
 		if(resource == null){
-			System.err.println("Can't find dontlookatme: " + ClassLoader.getSystemClassLoader().getClass());
+			System.err.println("Can't find inner: " + ClassLoader.getSystemClassLoader().getClass());
 			System.exit(1);
 		}
-		Crazy wild = new Crazy(new ZipInputStream(new BufferedInputStream(resource)));
-		Class<?> clazz = wild.loadClass("REPLACE ME WITH NAME OF MAIN CLASS");
+		CustomClassLoader ccl = new CustomClassLoader(new ZipInputStream(new BufferedInputStream(resource)));
+		Class<?> clazz = ccl.loadClass("REPLACE ME WITH NAME OF MAIN CLASS");
 		Method main = clazz.getMethod("main", new Class[]{String[].class});
 		main.invoke(null, new Object[]{args});
-		/*new Crazy(new ZipInputStream(new BufferedInputStream(ClassLoader.getSystemResourceAsStream("/dontlookatme"))))
-		.loadClass("REPLACE ME WITH NAME OF MAIN CLASS")
-		.getMethod("main", new Class[]{String[].class})
-		.invoke(null, new Object[]{new String[]{}});*/
 	}
 	
 	private final HashMap<String, byte[]> map;
 
-	private Crazy(ZipInputStream zis) throws IOException {
+	private CustomClassLoader(ZipInputStream zis) throws IOException {
 		map = new HashMap<>();
 		ZipEntry entry;
 		while((entry = zis.getNextEntry()) != null){

@@ -5,7 +5,7 @@ import java.io.IOException;
 import java.nio.file.DirectoryStream.Filter;
 import java.util.Stack;
 
-public class Other {
+public class LineCounter {
 
 	public static void main(String...args) throws IOException {
 		System.out.println(
