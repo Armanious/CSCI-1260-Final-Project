@@ -280,9 +280,6 @@ public class NameObfuscatorBeta extends Obfuscator {
 	}
 
 	private String obfuscateMethodFieldDesc(String desc){
-		if(desc.startsWith("[") && desc.length() > 11 && desc.substring(10).contains("[")){
-			System.err.println("walk");
-		}
 		final StringBuilder obfuscatedDesc = new StringBuilder(desc);
 		int idxOfNextObject = 0;
 		int endIdx = 0;
@@ -502,7 +499,6 @@ public class NameObfuscatorBeta extends Obfuscator {
 									}
 								}
 							}
-							System.err.println("REFELCTION = " + min.name);
 						}
 						if(min.owner.charAt(0) == '['){
 							//[Lorg/armanious/csci1260/Temporary; .clone(); for example
@@ -567,7 +563,6 @@ public class NameObfuscatorBeta extends Obfuscator {
 							}else{
 								
 							}
-							System.err.println("lin.cst (String) === " + (String)lin.cst);
 						}
 						//TODO
 						break;
