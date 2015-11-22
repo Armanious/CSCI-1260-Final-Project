@@ -7,6 +7,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
@@ -22,6 +23,7 @@ import org.armanious.csci1260.optimization.OptimizationManager;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.util.CheckClassAdapter;
 
 public class Entry {
 
@@ -141,7 +143,7 @@ public class Entry {
 		System.out.println("Loaded " + classDatas.size() + " classes.");
 
 		DataManager dm = new DataManager(classDatas);
-		
+
 
 
 		//not compressed or encrypted
@@ -186,10 +188,10 @@ public class Entry {
 
 		//TODO fora Temporary that has operands qith some equal to each other, store into
 		//local variable and reload
-		
-		
+
+
 		//The name of the main_class may have been obfuscated; instead we keep track of the ClassNode
-		
+
 		if(compress_output){
 			GoCrazyWildAndFree.goCrazyWildAndFree(dm, main_class_reference.name, output_directory);
 		}else{
@@ -235,7 +237,7 @@ public class Entry {
 			if(!fileForClass.getParentFile().exists()){
 				fileForClass.getParentFile().mkdirs();
 			}
-			final ClassWriter cw = new ClassWriter(0){
+			final ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS){
 				private final Map<String, ClassNode> map = classDatas.stream().collect(Collectors.toMap((ClassNode cn) -> cn.name, (cn) -> cn));
 				private final Map<String, String[]> classHierarchyCache = new HashMap<>();
 				//TODO replace with DataManager
@@ -285,6 +287,7 @@ public class Entry {
 			};
 			try{
 				cn.accept(cw);
+
 				//cn.accept(new TraceClassVisitor(new PrintWriter(System.out)));
 			}catch(Exception e){
 				//cn.accept(new TraceClassVisitor(new PrintWriter(System.out)));
