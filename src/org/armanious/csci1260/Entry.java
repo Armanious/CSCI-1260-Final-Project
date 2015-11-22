@@ -1,6 +1,8 @@
 package org.armanious.csci1260;
 
 import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -10,18 +12,21 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Stack;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
-import java.util.stream.Collectors;
+import java.util.jar.JarOutputStream;
+import java.util.jar.Manifest;
+import java.util.zip.ZipEntry;
+
+import javax.swing.JOptionPane;
 
 import org.armanious.csci1260.obfuscation.DataCompressionObfuscator;
 import org.armanious.csci1260.obfuscation.ObfuscationManager;
 import org.armanious.csci1260.optimization.OptimizationManager;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.ClassNode;
 
 public class Entry {
@@ -59,18 +64,6 @@ public class Entry {
 
 		System.out.println(Arrays.toString(args));
 
-		if(args == null || args.length == 0){
-			final String PROGRAM_TO_TEST_ON = "CSCI 1260 Final Project";
-			File f = new File(new File(System.getProperty("user.dir")).getParentFile(), PROGRAM_TO_TEST_ON + File.separator + "bin");
-			args = new String[]{f.toString(), 
-					"run_output=true",
-					"obfuscation.compress_output=true",
-					"obfuscation.main_class=org.armanious.csci1260.Entry",
-					//"obfuscation.name_pattern=ATCG",
-					//"obfuscation.name_length=4",
-			/*"obfuscation.use_obfuscation=false"*/};
-		}
-
 		if(args == null || args.length == 0) printUsage();
 		if(args[0].equalsIgnoreCase("-defaults")) printDefaults();
 		final File file = new File(args[0]);
@@ -101,6 +94,8 @@ public class Entry {
 			isJar = false;
 		}
 
+		System.err.println("isJar = " + isJar);
+
 
 		/*for(ClassNode cn : classDatas){
 			cn.accept(new TraceClassVisitor(new PrintWriter(System.out)));
@@ -123,6 +118,12 @@ public class Entry {
 		if(classDatas.size() == 0) printUsage();
 
 		ClassNode main_class_reference = null;
+
+		if(run_output){
+			if(main_class == null){
+				printUsage();
+			}
+		}
 
 		if(main_class != null){
 			for(ClassNode cn : classDatas){
@@ -147,22 +148,24 @@ public class Entry {
 
 		//not compressed or encrypted
 		//TODO remove me and ask if would like to override previous output
-		if(output_directory.exists()){
-			final Stack<File> toDelete = new Stack<>();
-			toDelete.push(output_directory);
-			while(!toDelete.isEmpty()){
-				final File cur = toDelete.pop();
-				if(cur.isDirectory()){
-					if(cur.list().length == 0){
-						cur.delete();
-					}else{
-						toDelete.push(cur);
-						for(File child : cur.listFiles()){
-							toDelete.push(child);
+		if(JOptionPane.showConfirmDialog(null, "Recursively delete " + output_directory + "?") == JOptionPane.YES_OPTION){
+			if(output_directory.exists()){
+				final Stack<File> toDelete = new Stack<>();
+				toDelete.push(output_directory);
+				while(!toDelete.isEmpty()){
+					final File cur = toDelete.pop();
+					if(cur.isDirectory()){
+						if(cur.list().length == 0){
+							cur.delete();
+						}else{
+							toDelete.push(cur);
+							for(File child : cur.listFiles()){
+								toDelete.push(child);
+							}
 						}
+					}else{
+						cur.delete();
 					}
-				}else{
-					cur.delete();
 				}
 			}
 		}
@@ -192,12 +195,12 @@ public class Entry {
 		//The name of the main_class may have been obfuscated; instead we keep track of the ClassNode
 
 		if(compress_output){
-			DataCompressionObfuscator.goCrazyWildAndFree(dm, main_class_reference.name, output_directory);
+			DataCompressionObfuscator.compressDataAndOutputJarFile(dm, main_class_reference.name, output_directory);
 		}else{
 			if(isJar){
-				outputClassesAsJar(classDatas, file.getName().replace(".jar", "_obfuscated.jar"), output_directory);
+				outputClassesAsJar(dm, classDatas, file.getName().replace(".jar", "_obfuscated.jar"), output_directory);
 			}else{
-				outputClasses(classDatas, output_directory);
+				outputClasses(dm, classDatas, output_directory);
 			}
 		}
 
@@ -215,63 +218,54 @@ public class Entry {
 		}
 	}
 
-	private static void outputClassesAsJar(ArrayList<ClassNode> classDatas, String jarName, File directory){
-		//TODO FIXME, esp. Manifest
-		outputClasses(classDatas, new File(directory, jarName.replace(".jar", "")));
+	private static void outputClassesAsJar(DataManager dm, ArrayList<ClassNode> classDatas, String jarName, File directory){
+		try{
+			final Manifest manifest = new Manifest(new ByteArrayInputStream(("Manifest-Version: 1.0\n" +
+					"Created-By: 1.7.0_06\n"
+					+ "Main-Class: " + main_class + "\n").getBytes()));
+			final File outputFile = new File(directory, jarName);
+			directory.mkdirs();
+			outputFile.createNewFile();
+			final JarOutputStream jos = new JarOutputStream(new BufferedOutputStream(new FileOutputStream(outputFile)), manifest);
+			
+			for(ClassNode cn : classDatas){
+				jos.putNextEntry(new ZipEntry(cn.name.replace('/', '.').concat(".class")));
+				final ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES){
+					@Override
+					protected String getCommonSuperClass(String type1, String type2) {
+						Type superClass = dm.getCommonSuperType(Type.getType(type1), Type.getType(type2));
+						if(superClass == null){
+							return super.getCommonSuperClass(type1, type2);
+						}
+						return superClass == null ? super.getCommonSuperClass(type1, type2) : (superClass.getDescriptor().length() == 1 ? superClass.getDescriptor() : superClass.getInternalName());
+					}
+				};
+				cn.accept(cw);
+				jos.write(cw.toByteArray());
+				jos.closeEntry();
+			}
+			jos.flush();
+			jos.close();
+		}catch(IOException e){
+			System.err.println("Error saving " + jarName + ". Attempting to save in directory now.");
+			outputClasses(dm, classDatas, directory);
+		}
 	}
 
-	private static void outputClasses(ArrayList<ClassNode> classDatas, File directory){
+	private static void outputClasses(DataManager dm, ArrayList<ClassNode> classDatas, File directory){
 		for(ClassNode cn : classDatas){
 			final File fileForClass = new File(directory, cn.name.replace('/', File.separatorChar) + ".class");
 			if(!fileForClass.getParentFile().exists()){
 				fileForClass.getParentFile().mkdirs();
 			}
 			final ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS){
-				private final Map<String, ClassNode> map = classDatas.stream().collect(Collectors.toMap((ClassNode cn) -> cn.name, (cn) -> cn));
-				private final Map<String, String[]> classHierarchyCache = new HashMap<>();
-				//TODO replace with DataManager
-				private String[] getClassHierarchyBeta(String type){
-					String[] cached = classHierarchyCache.get(type);
-					if(cached == null){
-						final ClassNode cn = map.get(type);
-						String[] superHierarchy;
-						if(cn == null){
-							try {
-								Class<?> clazz = Class.forName(type.replace('/', '.'));
-								if(clazz == Object.class){
-									return new String[]{"java/lang/Object"};
-								}else if(clazz.getSuperclass() == null){
-									return new String[]{type.replace('/', '.'), "java/lang/Object"};
-								}
-								superHierarchy = getClassHierarchyBeta(clazz.getSuperclass().getName().replace('.', '/'));
-							} catch (ClassNotFoundException e) {
-								throw new RuntimeException(e);
-							}
-						}else{
-							superHierarchy = getClassHierarchyBeta(cn.superName);
-						}
-						cached = new String[superHierarchy.length + 1];
-						System.arraycopy(superHierarchy, 0, cached, 1, superHierarchy.length);
-						cached[0] = type;
-						classHierarchyCache.put(type, cached);
-					}
-					return cached;
-				}
 				@Override
 				protected String getCommonSuperClass(String type1, String type2) {
-					if(type1.equals(type2)) return type1;
-
-					String[] ch1 = getClassHierarchyBeta(type1);
-					String[] ch2 = getClassHierarchyBeta(type2);
-					for(int i = 0; i < ch1.length; i++){
-						for(int j = 0; j < ch2.length; j++){
-							if(ch1[i].equals(ch2[j])){
-								return ch1[i];
-							}
-						}
+					Type superClass = dm.getCommonSuperType(Type.getType(type1), Type.getType(type2));
+					if(superClass == null){
+						return super.getCommonSuperClass(type1, type2);
 					}
-
-					return null;
+					return superClass == null ? super.getCommonSuperClass(type1, type2) : (superClass.getDescriptor().length() == 1 ? superClass.getDescriptor() : superClass.getInternalName());
 				}
 			};
 			try{
@@ -325,12 +319,14 @@ public class Entry {
 			final Enumeration<JarEntry> entries = jar.entries();
 			while(entries.hasMoreElements()){
 				final JarEntry next = entries.nextElement();
-				try {
-					final byte[] data = readInputStream(new BufferedInputStream(jar.getInputStream(next)));
-					classDatas.add(getClassNodeFromData(data));
-				} catch(IOException e){
-					System.err.println("Error reading JarEntry: " + next.getName() + ". Stack trace: ");
-					e.printStackTrace();
+				if(next.getName().endsWith(".class")){
+					try {
+						final byte[] data = readInputStream(new BufferedInputStream(jar.getInputStream(next)));
+						classDatas.add(getClassNodeFromData(data));
+					} catch(Exception e){
+						System.err.println("Error reading JarEntry: " + next.getName() + ". Stack trace: ");
+						e.printStackTrace();
+					}
 				}
 			}
 		} catch (IOException e) {
@@ -468,7 +464,7 @@ public class Entry {
 				+ "\tobfuscation.name_remapping_file={file}\n"
 				+ "\tobfuscation.use_stack_manipulation={true|false}\n"
 				+ "\tobfuscation.compress_output={true|false}\n"
-				+ "\tobfuscation.main_class={Binary class name with main(String[]args) method}\n\t\tRequired if obfuscation.compress_output=true\n"
+				+ "\tobfuscation.main_class={Binary class name with main(String[]args) method}\n\t\tRequired if obfuscation.compress_output=true or if run_output=true\n"
 				//+ "\tobfuscation.encrypt_output={true|false}\n"
 				+ "\n"
 				+ "\toptimization.use_optimization={true|false}\n"
