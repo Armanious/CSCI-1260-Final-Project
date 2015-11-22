@@ -4,7 +4,6 @@ import java.io.File;
 import java.util.ArrayList;
 
 import org.armanious.csci1260.DataManager;
-import org.armanious.csci1260.DataManager.MethodInformation;
 import org.objectweb.asm.tree.ClassNode;
 
 public final class ObfuscationManager {
@@ -36,7 +35,7 @@ public final class ObfuscationManager {
 			boolean use_stack_manipulation){
 		ObfuscationManager om = new ObfuscationManager(classes);
 		//TODO
-		//om.addObfuscationPhase(new NameObfuscatorBeta(om, name_pattern, name_length, preserve_package_structure, outputFileForNameRemapping));
+		om.addObfuscationPhase(new NameObfuscatorBeta(om, name_pattern, name_length, preserve_package_structure, outputFileForNameRemapping));
 		if(use_stack_manipulation){
 			new StackManipulatorBeta(dm).obfuscate();
 			//om.addObfuscationPhase(new SimpleStackManipulator(om));
