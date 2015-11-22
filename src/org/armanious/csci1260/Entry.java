@@ -21,7 +21,7 @@ import org.armanious.csci1260.obfuscation.DataCompressionObfuscator;
 import org.armanious.csci1260.obfuscation.ObfuscationManager;
 import org.armanious.csci1260.optimization.OptimizationManager;
 import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.ClassWriter;a
+import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.tree.ClassNode;
 
 public class Entry {
@@ -64,7 +64,7 @@ public class Entry {
 			File f = new File(new File(System.getProperty("user.dir")).getParentFile(), PROGRAM_TO_TEST_ON + File.separator + "bin");
 			args = new String[]{f.toString(), 
 					"run_output=true",
-					"obfuscation.compress_output=false",
+					"obfuscation.compress_output=true",
 					"obfuscation.main_class=org.armanious.csci1260.Entry",
 					//"obfuscation.name_pattern=ATCG",
 					//"obfuscation.name_length=4",

@@ -25,6 +25,8 @@ import org.objectweb.asm.tree.VarInsnNode;
 
 public class StackManipulatorBeta implements Opcodes {
 
+	private static final double RATE_OF_STACK_MANIPULATION = 0.2500;
+
 	private final DataManager dm;
 
 	public StackManipulatorBeta(DataManager dm){
@@ -33,6 +35,7 @@ public class StackManipulatorBeta implements Opcodes {
 
 	public void obfuscate(){
 		int count = 0;
+		int possibilityCount = 0;
 		for(MethodInformation mi : dm.methodInformations.values()){
 			final Temporary[] tmps = mi.temporaries.toArray(new Temporary[mi.temporaries.size()]);
 			@SuppressWarnings("unchecked") //sigh runtime type erasure
@@ -70,8 +73,11 @@ public class StackManipulatorBeta implements Opcodes {
 						//make sure they are non-overlapping; i.e. select the temporaries with
 						//the largest size of contiguous instructions and remove the temporaries
 						//that interfere with it (may or may not be an operand)
+
 						blocks[j] = null;
 						tmps[j] = null;
+						//allowing such overlap breaks the LinkedList because there will
+						// **many** circular connections of ~3 instructions
 					}
 				}
 			}
@@ -84,16 +90,23 @@ public class StackManipulatorBeta implements Opcodes {
 				final Temporary tmp = tmps[i];
 
 				final ArrayList<Temporary> criticalTemporaries = tmp.getCriticalTemporaries();
-				count++;
-				//manipulateStackBeforeAndAfterTemporary(mi, tmp, criticalTemporaries, block);
-				manipulateStackSwappingTemporaryOperands(mi, tmp, criticalTemporaries, block);
+				if(r.nextDouble() <= RATE_OF_STACK_MANIPULATION){
+					count++;
+					manipulateStackBeforeAndAfterTemporary(mi, tmp, criticalTemporaries, block);
+				}
+				if(r.nextDouble() <= RATE_OF_STACK_MANIPULATION){
+					count++;
+					manipulateStackSwappingTemporaryOperands(mi, tmp, criticalTemporaries, block);
+				}
+				possibilityCount += 2;
 				//NOTE: if you will do both: you must do the insertion one before the swapping one
 				//otherwise, it corrupts the stack
 			}
 
 		}
 
-		System.out.println("Manipulated the stack in " + count + " locations.");
+		System.out.println("Manipulated the stack in " + count + " out of " + possibilityCount + " posssible locations. "
+				+ "(" + ((int)(count * 10000.0 / possibilityCount))/100.0 + "%)");
 
 	}
 
@@ -466,19 +479,38 @@ public class StackManipulatorBeta implements Opcodes {
 			numUnique++;
 		}
 		if(numUnique <= 1) return;
-
 		//at least 2 unique operands
-		int firstIndex = r.nextInt(criticalTemporaries.size()); //index of first operand to swap
-		int secondIndex; //index of second operand to swap
-		Temporary first = criticalTemporaries.get(firstIndex);
-		Temporary second;
-		int sizeBetweenInclusive;
 
 		ArrayList<Integer> possibilities = new ArrayList<>();
+		for(int i = 0; i < criticalTemporaries.size(); i++){
+			possibilities.add(i);
+		}
+		ListIterator<Integer> iter = possibilities.listIterator();
+		while(iter.hasNext()){
+			int next = iter.next();
+			if(criticalTemporaries.get(next).getContiguousBlock() == null){
+				iter.remove();
+			}
+		}
+		if(possibilities.size() == 0){
+			System.err.println("Can't manipulate stack on " + dm.methodNodeToOwnerMap.get(mi.mn).name + "." + mi.mn.name + mi.mn.desc);
+		}
+		int firstIndex = possibilities.get(r.nextInt(possibilities.size()));
+		Temporary first = criticalTemporaries.get(firstIndex);
+		ArrayList<AbstractInsnNode> F = first.getContiguousBlock();
+		
+		
+		int secondIndex; //index of second operand to swap
+		Temporary second;
+		ArrayList<AbstractInsnNode> S;
+		
+		int sizeBetweenInclusive;
+
+		possibilities.clear();
 		for(int i = -4; i <= 4; i++){
 			if(i != 0) possibilities.add(i);
 		}
-		ListIterator<Integer> iter = possibilities.listIterator();
+		iter = possibilities.listIterator();
 		while(iter.hasNext()){
 			int possibility = iter.next();
 			if(firstIndex + possibility < 0 || firstIndex + possibility >= criticalTemporaries.size()){
@@ -486,6 +518,10 @@ public class StackManipulatorBeta implements Opcodes {
 				continue;
 			}
 			if(sizeBetweenInclusive(criticalTemporaries, firstIndex, firstIndex + possibility) > 4){
+				iter.remove();
+				continue;
+			}
+			if(criticalTemporaries.get(firstInedx + possibility).getContiguousBlock() == null){
 				iter.remove();
 				continue;
 			}
@@ -513,6 +549,7 @@ public class StackManipulatorBeta implements Opcodes {
 		}
 		secondIndex = firstIndex + possibilities.get(r.nextInt(possibilities.size()));
 		second = criticalTemporaries.get(secondIndex);
+		S = second.getContiguousBlock();
 		sizeBetweenInclusive = sizeBetweenInclusive(criticalTemporaries, firstIndex, secondIndex);
 
 		if(firstIndex > secondIndex){
@@ -523,10 +560,6 @@ public class StackManipulatorBeta implements Opcodes {
 			secondIndex = tmp;
 			second = TMP;
 		}
-
-
-		final ArrayList<AbstractInsnNode> F = first.getContiguousBlock();
-		final ArrayList<AbstractInsnNode> S = second.getContiguousBlock();
 
 		swap(F, S);
 
