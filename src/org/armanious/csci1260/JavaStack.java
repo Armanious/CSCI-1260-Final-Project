@@ -83,12 +83,13 @@ public final class JavaStack {
 
 	@Override
 	public String toString() {
-		if(stack.length > 0){
+		if(stack[0] != null){
 			final StringBuilder sb = new StringBuilder("[");
-			for(int i = 0; i < stack.length - 1; i++){
+			for(int i = 0; i < stack.length; i++){
+				if(stack[i] == null) break;
 				sb.append(stack[i]).append(", ");
 			}
-			return sb.append(stack[stack.length - 1]).append("]").toString();
+			return sb.substring(0, sb.length() - 2).concat("]");
 		}else{
 			return "[]";
 		}
