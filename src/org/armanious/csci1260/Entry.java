@@ -26,10 +26,7 @@ import org.armanious.csci1260.obfuscation.ObfuscationManager;
 import org.armanious.csci1260.optimization.OptimizationManager;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
-<<<<<<< HEAD
-=======
 import org.objectweb.asm.Type;
->>>>>>> stack-manip-improvements
 import org.objectweb.asm.tree.ClassNode;
 
 public class Entry {
@@ -67,7 +64,6 @@ public class Entry {
 
 		System.out.println(Arrays.toString(args));
 
-<<<<<<< HEAD
 		if(args == null || args.length == 0){
 			final String PROGRAM_TO_TEST_ON = "CSCI 1260 Tests";
 			File f = new File(new File(System.getProperty("user.dir")).getParentFile(), PROGRAM_TO_TEST_ON + File.separator + "bin");
@@ -81,8 +77,6 @@ public class Entry {
 					"optimization.use_optimization=true"};
 		}
 
-=======
->>>>>>> stack-manip-improvements
 		if(args == null || args.length == 0) printUsage();
 		if(args[0].equalsIgnoreCase("-defaults")) printDefaults();
 		final File file = new File(args[0]);
