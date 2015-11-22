@@ -23,7 +23,7 @@ public class MainInvoker {
 		isJar = directoryOrJar.getName().endsWith(".jar");
 		parentDirectory = isJar ? directoryOrJar.getParentFile() : directoryOrJar;
 		jarFile = isJar ? directoryOrJar : null;
-
+		
 		mainClassName = mainClassInternalName.replace('/', '.');
 		/*
 		if(mainClassInternalName != null){

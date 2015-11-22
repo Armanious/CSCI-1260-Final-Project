@@ -2740,7 +2740,7 @@ public class DataManager {
 							break;
 						case NEW:
 							TypeInsnNode tin = (TypeInsnNode) executingInstruction;
-							toPush = new ObjectInstanceTemporary(executingInstruction, Type.getType(tin.desc));
+							toPush = new ObjectInstanceTemporary(executingInstruction, Type.getType('L' + tin.desc + ';'));
 							break;
 						case NEWARRAY:
 							IntInsnNode inin = (IntInsnNode) executingInstruction;

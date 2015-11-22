@@ -31,10 +31,9 @@ public class DataCompressionObfuscator {
 		CLASS_LOADER_NAME = name;
 	}
 	
-	public static void goCrazyWildAndFree(final DataManager dm, String main_class, File output_directory) {
+	public static void compressDataAndOutputJarFile(final DataManager dm, String main_class, File output_directory) {
 		try {
 			main_class = main_class.replace('/', '.'); //convert to binary
-			System.err.println(main_class);
 			/*ClassWriter cw = new ClassWriter(0);
 			ClassReader cr = new ClassReader(forlolz.Crazy.class.getName());
 			

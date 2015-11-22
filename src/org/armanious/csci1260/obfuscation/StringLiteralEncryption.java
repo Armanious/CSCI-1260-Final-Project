@@ -22,7 +22,6 @@ import org.objectweb.asm.tree.VarInsnNode;
 
 public class StringLiteralEncryption {
 
-
 	public static String decipher(String s){
 		final char[] arr = s.toCharArray();
 		for(int i = 0; i < arr.length; i++){
@@ -31,8 +30,7 @@ public class StringLiteralEncryption {
 		return new String(arr);
 	}
 
-
-	private static final double RATE_OF_NEW_CIPHER = 0.100;
+	private static final double RATE_OF_NEW_CIPHER = 0.150;
 	private static final Random random = new Random();
 
 	private static final int MIN_K = Integer.MIN_VALUE;
@@ -135,7 +133,7 @@ public class StringLiteralEncryption {
 			
 			mn.instructions = list;
 		}
-
+		
 		public MethodInsnNode getDecipherMethodInstruction() {
 			if(decipherMethodOwner == null){
 				ClassNode cn;
@@ -179,19 +177,27 @@ public class StringLiteralEncryption {
 			int j;
 			while((j = MIN_J + (int) (random.nextDouble() * ((double)MAX_J - MIN_J))) == 0);
 			prev = new CipherHandle(k, j);
+			numCiphers++;
 		}
 		return prev;
 	}
-
+	
+	private int numCiphers = 0;
+	private int numEncrypted = 0;
+	
 	public void obfuscate(){
 		for(ClassNode cn : dm.classes){
 			final MethodNode[] methods = cn.methods.toArray(new MethodNode[cn.methods.size()]);
 			//to avoid ConcurrentModificationException if the selected class to add the decipher
 			//method just happens to be equal to cn as well, we convert the methods to an array
+			long last = System.currentTimeMillis();
 			for(MethodNode mn : methods){
 				if(Modifier.isAbstract(mn.access) || Modifier.isNative(mn.access)) continue;
 				boolean forceRetry = false;
 				for(AbstractInsnNode ain = mn.instructions.getFirst(); ain != null; ain = (forceRetry ? ain : ain.getNext())){
+					if(System.currentTimeMillis() - last >= 500){
+						System.err.println("DBUG");
+					}
 					if(ain instanceof LdcInsnNode){
 						forceRetry = false;
 						final LdcInsnNode lin = (LdcInsnNode) ain;
@@ -206,18 +212,24 @@ public class StringLiteralEncryption {
 								//just retry until you get one that works...
 								prev = null; //forces creation of new cipher next time
 								forceRetry = true;
+								numCiphers--; //it didn't work; don't count it
 								//ain = ain.getPrevious(); //rewind one instruction
 								//cant do ain.getPrevious because sometimes the LDC instruction
 								//is the first in the block
 								continue; //try again
 							}
 							lin.cst = ciphered;
+							numEncrypted++;
 							mn.instructions.insert(lin, handle.getDecipherMethodInstruction());
 						}
 					}
 				}
+				last = System.currentTimeMillis();
 			}
 		}
+		
+		System.out.println("Encrypted " + numEncrypted + " string literals using " + numCiphers + " different ciphers.");
+		
 	}
 
 }
