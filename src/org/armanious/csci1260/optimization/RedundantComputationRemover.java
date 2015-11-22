@@ -75,7 +75,7 @@ public class RedundantComputationRemover {
 		//store in Map<Temporary, Integer> sorted by the keys
 		for(MethodInformation mi : dm.methodInformations.values()){
 			if(!mi.mn.name.equals("loopTest")) continue;
-			ArrayList<Temporary> temps = new ArrayList<>(mi.temporaries);
+			ArrayList<Temporary> temps = new ArrayList<>(mi.temporaries.values());
 			for(int i = 0; i < temps.size(); i++){
 				final Temporary t1 = temps.get(i);
 				ArrayList<AbstractInsnNode> block = t1.getContiguousBlock();

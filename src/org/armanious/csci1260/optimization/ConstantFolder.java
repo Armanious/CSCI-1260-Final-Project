@@ -174,7 +174,7 @@ public class ConstantFolder {
 				if(mi == null) continue;
 
 				final int size = mi.temporaries.size();
-				final Temporary[] arr = mi.temporaries.toArray(new Temporary[size]);
+				final Temporary[] arr = mi.temporaries.values().toArray(new Temporary[size]);
 
 				for(int i = 0; i < size; i++){
 					final Temporary T = arr[i];

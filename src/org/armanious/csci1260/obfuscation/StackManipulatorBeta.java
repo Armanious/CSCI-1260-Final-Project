@@ -2,8 +2,8 @@ package org.armanious.csci1260.obfuscation;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map.Entry;
@@ -37,7 +37,7 @@ public class StackManipulatorBeta implements Opcodes {
 		int count = 0;
 		int possibilityCount = 0;
 		for(MethodInformation mi : dm.methodInformations.values()){
-			final Temporary[] tmps = mi.temporaries.toArray(new Temporary[mi.temporaries.size()]);
+			final Temporary[] tmps = mi.temporaries.values().toArray(new Temporary[mi.temporaries.size()]);
 			@SuppressWarnings("unchecked") //sigh runtime type erasure
 			final ArrayList<AbstractInsnNode>[] blocks = (ArrayList<AbstractInsnNode>[]) new ArrayList[tmps.length];
 			final Comparator<ArrayList<AbstractInsnNode>> descendingComparator = (A,B)->(B == null ? -1 : B.size()) - (A == null ? -1 : A.size());
@@ -110,6 +110,7 @@ public class StackManipulatorBeta implements Opcodes {
 
 	}
 
+	@SuppressWarnings("unused")
 	@Deprecated
 	private void obfuscate_bugged(){
 		int totalCount = 0;
@@ -117,7 +118,7 @@ public class StackManipulatorBeta implements Opcodes {
 			String name = dm.methodNodeToOwnerMap.get(mi.mn).name + "." + mi.mn.name + mi.mn.desc;
 
 			boolean printed = false;
-			HashSet<Temporary> tmps = mi.temporaries;
+			Collection<Temporary> tmps = mi.temporaries.values();
 			TreeMap<ArrayList<AbstractInsnNode>, Temporary> goodTargets = new TreeMap<>((a1,a2)->a1.size()-a2.size());
 			for(Temporary tmp : tmps){
 				ArrayList<AbstractInsnNode> block = tmp.getContiguousBlock();
@@ -494,6 +495,7 @@ public class StackManipulatorBeta implements Opcodes {
 		}
 		if(possibilities.size() == 0){
 			System.err.println("Can't manipulate stack on " + dm.methodNodeToOwnerMap.get(mi.mn).name + "." + mi.mn.name + mi.mn.desc);
+			return;
 		}
 		int firstIndex = possibilities.get(r.nextInt(possibilities.size()));
 		Temporary first = criticalTemporaries.get(firstIndex);
