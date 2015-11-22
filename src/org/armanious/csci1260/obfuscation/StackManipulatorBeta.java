@@ -5,11 +5,13 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map.Entry;
 import java.util.Random;
 import java.util.TreeMap;
 
 import org.armanious.csci1260.DataManager;
+import org.armanious.csci1260.DataManager.InvokeSpecialTemporary;
 import org.armanious.csci1260.DataManager.MethodInformation;
 import org.armanious.csci1260.DataManager.Temporary;
 import org.armanious.csci1260.JavaStack;
@@ -40,30 +42,30 @@ public class StackManipulatorBeta implements Opcodes {
 				final Temporary tmp = tmps[i];
 				final ArrayList<AbstractInsnNode> block = tmp.getContiguousBlock();
 				if(block == null) continue;
-				
+
 				int index = Arrays.binarySearch(blocks, block, descendingComparator);
 				if(index < 0) index = ~index;
-				
+
 				System.arraycopy(blocks, index, blocks, index + 1, blocks.length - index - 1);
 				blocks[index] = block;
 				System.arraycopy(tmps, index, tmps, index + 1, tmps.length - index - 1);
 				tmps[index] = tmp;
 			}
-			
+
 			for(int i = 0; i < blocks.length; i++){
 				final ArrayList<AbstractInsnNode> block = blocks[i];
 				if(block == null) continue;
-				
+
 				final int start = block.get(0).getIndex();
 				final int end = block.get(block.size() - 1).getIndex();
-				
+
 				for(int j = i + 1; j < blocks.length; j++){
 					final ArrayList<AbstractInsnNode> list2 = blocks[j];
 					if(list2 == null) continue;
-					
+
 					final int start2 = list2.get(0).getIndex();
 					final int end2 = list2.get(list2.size() - 1).getIndex();
-					
+
 					if((start2 >= start && start2 <= end) || (end2 >= start || end2 <= end)){
 						//make sure they are non-overlapping; i.e. select the temporaries with
 						//the largest size of contiguous instructions and remove the temporaries
@@ -73,28 +75,28 @@ public class StackManipulatorBeta implements Opcodes {
 					}
 				}
 			}
-			
+
 			//note: we could merge this loop with the previous and maintain functionality,
 			//but separating the two loops maintains readability
 			for(int i = 0; i < blocks.length; i++){
 				final ArrayList<AbstractInsnNode> block = blocks[i];
 				if(block == null) continue;
 				final Temporary tmp = tmps[i];
-				
+
 				final ArrayList<Temporary> criticalTemporaries = tmp.getCriticalTemporaries();
 				count++;
-				manipulateStackBeforeAndAfterTemporary(mi, tmp, criticalTemporaries, block);
+				//manipulateStackBeforeAndAfterTemporary(mi, tmp, criticalTemporaries, block);
 				manipulateStackSwappingTemporaryOperands(mi, tmp, criticalTemporaries, block);
 				//NOTE: if you will do both: you must do the insertion one before the swapping one
 				//otherwise, it corrupts the stack
 			}
-			
+
 		}
-		
+
 		System.out.println("Manipulated the stack in " + count + " locations.");
-		
+
 	}
-	
+
 	@Deprecated
 	private void obfuscate_bugged(){
 		int totalCount = 0;
@@ -123,7 +125,7 @@ public class StackManipulatorBeta implements Opcodes {
 					System.err.println("This is the source of error");
 				}
 			}
-			
+
 			for(int i = 0; i < goodTargets.size(); i++){
 				final ArrayList<AbstractInsnNode> list = entries[i].getKey();
 				final int start = list.get(0).getIndex();
@@ -198,7 +200,7 @@ public class StackManipulatorBeta implements Opcodes {
 		//when inserting instructions to restore stack
 		// that criticalTemporaries is sorted in the order they are pushed onto the stack
 		// that block is sorted in the order the instructions are executed
-		
+
 		final Tuple<InsnList, Tuple<Integer, Integer>> toInsertBefore = generateInsertion();
 		final int sizeOfResult = t.getType().getSize();
 
@@ -295,10 +297,10 @@ public class StackManipulatorBeta implements Opcodes {
 					//S2 == 1
 					{
 						//MID == 1
-						{SWAP, DUP2_X2, POP2},
-						{SWAP, DUP2_X2, POP, POP},
-						{DUP_X1, POP, DUP2_X2, POP2},
-						{DUP_X1, POP, DUP2_X2, POP, POP},
+						{SWAP, DUP2_X1, POP2},
+						{SWAP, DUP2_X1, POP, POP},
+						{DUP_X1, POP, DUP2_X1, POP2},
+						{DUP_X1, POP, DUP2_X1, POP, POP},
 
 						{DUP_X2, POP, SWAP},
 						{DUP_X2, POP, DUP_X1, POP}
@@ -419,7 +421,7 @@ public class StackManipulatorBeta implements Opcodes {
 		}
 		return Opcodes.ALOAD;
 	}
-	
+
 	private static void swap(List<AbstractInsnNode> L1, List<AbstractInsnNode> L2){
 		final AbstractInsnNode BL1 = L1.get(0).getPrevious();
 		final AbstractInsnNode AL1 = L1.get(L1.size() - 1).getNext();
@@ -451,7 +453,7 @@ public class StackManipulatorBeta implements Opcodes {
 	}
 
 	private void manipulateStackSwappingTemporaryOperands(MethodInformation mi, Temporary t, ArrayList<Temporary> criticalTemporaries, ArrayList<AbstractInsnNode> block){
-		//if(t instanceof ConstructorTemporary) return;
+		if(t instanceof InvokeSpecialTemporary) return;
 
 		int numUnique = 0;
 		outer: for(int i = 0; i < criticalTemporaries.size(); i++){
@@ -471,15 +473,47 @@ public class StackManipulatorBeta implements Opcodes {
 		Temporary first = criticalTemporaries.get(firstIndex);
 		Temporary second;
 		int sizeBetweenInclusive;
-		while(true){
-			secondIndex = r.nextInt(criticalTemporaries.size()); //more efficient way? oh well...
-			if(secondIndex == firstIndex) continue;
-			second = criticalTemporaries.get(secondIndex);
-			sizeBetweenInclusive = sizeBetweenInclusive(criticalTemporaries, firstIndex, secondIndex);
-			if(sizeBetweenInclusive > 4) continue;
-			break;
+
+		ArrayList<Integer> possibilities = new ArrayList<>();
+		for(int i = -4; i <= 4; i++){
+			if(i != 0) possibilities.add(i);
 		}
-		//size MUST be less than or equal to 4
+		ListIterator<Integer> iter = possibilities.listIterator();
+		while(iter.hasNext()){
+			int possibility = iter.next();
+			if(firstIndex + possibility < 0 || firstIndex + possibility >= criticalTemporaries.size()){
+				iter.remove();
+				continue;
+			}
+			if(sizeBetweenInclusive(criticalTemporaries, firstIndex, firstIndex + possibility) > 4){
+				iter.remove();
+				continue;
+			}
+			//size MUST be less than or equal to 4
+			for(int i = Math.min(firstIndex, firstIndex + possibility); i < Math.max(firstIndex, firstIndex + possibility); i++){
+				int op = criticalTemporaries.get(i).getDeclaration().getOpcode();
+				switch(op){
+				case Opcodes.SWAP:
+				case Opcodes.DUP:
+				case Opcodes.DUP2:
+				case Opcodes.DUP_X1:
+				case Opcodes.DUP_X2:
+				case Opcodes.DUP2_X1:
+				case Opcodes.DUP2_X2:
+					iter.remove();
+					break;
+				default:
+					continue;
+				}
+			}
+		}
+		if(possibilities.size() == 0){
+			System.err.println("Can't manipulate stack on " + dm.methodNodeToOwnerMap.get(mi.mn).name + "." + mi.mn.name + mi.mn.desc);
+			return;
+		}
+		secondIndex = firstIndex + possibilities.get(r.nextInt(possibilities.size()));
+		second = criticalTemporaries.get(secondIndex);
+		sizeBetweenInclusive = sizeBetweenInclusive(criticalTemporaries, firstIndex, secondIndex);
 
 		if(firstIndex > secondIndex){
 			int tmp = firstIndex;
