@@ -367,9 +367,11 @@ public class DataManager {
 
 	}
 
-	public static class ConstructorTemporary extends MethodInvocationTemporary {
+	public static class InvokeSpecialTemporary extends MethodInvocationTemporary {
+		
+		private final boolean isCallingSuper;
 
-		public ConstructorTemporary(AbstractInsnNode insn, Temporary[] args, boolean hasSideEffects) {
+		public InvokeSpecialTemporary(AbstractInsnNode insn, Temporary[] args, boolean hasSideEffects, boolean isCallingSuper) {
 			//args will include the ObjectInstance Temporary
 			/*
 			 * new X  //X
@@ -378,17 +380,22 @@ public class DataManager {
 			 * invokespecial X //POPS ALL 3; pushed Constructor(X)
 			 * astore 2 //a2 = Constructor(X) empty stack
 			 */
-			super(insn, args, args[0].getType().getInternalName(), "<init>", args[0].getType(), hasSideEffects);
+			super(insn, args, args[0].getType().getInternalName(), "<init>", isCallingSuper ? Type.VOID_TYPE : args[0].getType(), hasSideEffects);
+			this.isCallingSuper = isCallingSuper;
+		}
+		
+		public boolean isCallingSuper(){
+			return isCallingSuper;
 		}
 
 		@Override
 		public String toString() {
-			return "new " + owner + Arrays.toString(Arrays.copyOfRange(args, 2, args.length)).replace('[', '(').replace(']', ')');
+			return "new " + owner + Arrays.toString(Arrays.copyOfRange(args, isCallingSuper ? 1 : 2, args.length)).replace('[', '(').replace(']', ')');
 		}
 
 		@Override
 		protected Temporary clone() {
-			return new ConstructorTemporary(getDeclaration(), args, hasSideEffects);
+			return new InvokeSpecialTemporary(getDeclaration(), args, hasSideEffects, isCallingSuper);
 		}
 
 	}
@@ -1114,11 +1121,12 @@ public class DataManager {
 
 		@Override
 		protected void addRelevantInstructionsToList(ArrayList<AbstractInsnNode> list) {
-			for(Temporary t : mergedTemporaries){
+			list.add(getDeclaration());
+			/*for(Temporary t : mergedTemporaries){
 				if(t != null){
 					t.addRelevantInstructionsToList(list);
 				}
-			}
+			}*/
 		}
 		
 		@Override
@@ -1330,7 +1338,7 @@ public class DataManager {
 	}
 
 	private static final Level DEFAULT_LOG_LEVEL = Level.FINE;
-	private static final String TO_DEBUG = "test/hi/Hello$Inner$InnerIsAPain.<init>(Ltest/hi/Hello$Inner;)V";
+	private static final String TO_DEBUG = null;//"test/hi/Hello$Inner$InnerIsAPain.<init>(Ltest/hi/Hello$Inner;)V";
 
 	private static final Logger log = Logger.getLogger("DataManager");
 	static {
@@ -2678,7 +2686,6 @@ public class DataManager {
 							Temporary instance = stack.elementAt(stack.size() - args.length - 1);
 							
 							if(instance instanceof ObjectInstanceTemporary && ((ObjectInstanceTemporary)instance).isDupped()){
-								popped = new Temporary[args.length + 1 + 1]; //1 for "this",
 								/*
 								 * What it is:
 								 * new X (X); push 1
@@ -2693,13 +2700,23 @@ public class DataManager {
 								 * Purpose: so that the DUP instruction does not
 								 * break contiguous blocks in StackManipulator
 								 */
+								popped = new Temporary[args.length + 1 + 1]; //1 for "this",	
 								for(int i = 0; i < popped.length; i++){
 									popped[popped.length - i - 1] = stack.pop();
 								}
-								toPush = new ConstructorTemporary(executingInstruction, popped, true);
+								toPush = new InvokeSpecialTemporary(executingInstruction, popped, true, false);
 								((ObjectInstanceTemporary)instance).setIsDupped(false);
-								break;
+							}else{
+								/*
+								 * calling super.<init>
+								 */
+								popped = new Temporary[args.length + 1]; //1 for "this",
+								for(int i = 0; i < popped.length; i++){
+									popped[popped.length - i - 1] = stack.pop();
+								}
+								toPush = new InvokeSpecialTemporary(executingInstruction, popped, true, true);
 							}
+							break;
 							//fallthrough
 						case INVOKEVIRTUAL:
 						case INVOKESTATIC:
