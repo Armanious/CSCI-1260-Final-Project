@@ -4,6 +4,7 @@ import java.io.File;
 import java.util.ArrayList;
 
 import org.armanious.csci1260.DataManager;
+import org.armanious.csci1260.DataManager.MethodInformation;
 import org.objectweb.asm.tree.ClassNode;
 
 public final class ObfuscationManager {
