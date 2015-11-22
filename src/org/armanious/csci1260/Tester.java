@@ -6,7 +6,7 @@ import java.io.IOException;
 public class Tester {
 
 	public static void main(String...unused) throws IOException{
-		File f = new File("/Users/david/Desktop/maze/MazeMultiplayer.jar");
+		File f = new File("/Users/david/Desktop/battleship/battleship.jar");
 		String[] args = new String[]{f.toString(), 
 				"run_output=true",
 				"obfuscation.compress_output=true",
