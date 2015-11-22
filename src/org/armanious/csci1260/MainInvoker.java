@@ -7,31 +7,25 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.net.URL;
-import java.net.URLClassLoader;
-import java.util.Enumeration;
-import java.util.Stack;
-import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
 
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.util.TraceClassVisitor;
 
-public class CustomClassLoader extends URLClassLoader {
+public class MainInvoker {
 
 	private final File parentDirectory;
+	private final File jarFile;
+	private final boolean isJar;
+	private final String mainClassName;
+	//private Method mainToInvoke;
 
-	private Method mainToInvoke;
+	public MainInvoker(File directoryOrJar, String mainClassInternalName) {
+		isJar = directoryOrJar.getName().endsWith(".jar");
+		parentDirectory = isJar ? directoryOrJar.getParentFile() : directoryOrJar;
+		jarFile = isJar ? directoryOrJar : null;
 
-	public CustomClassLoader(File directoryOrJar, String mainClassInternalName) throws Throwable {
-
-		super(new URL[]{directoryOrJar.toURI().toURL()});
-		parentDirectory = directoryOrJar;
-
+		mainClassName = mainClassInternalName.replace('/', '.');
+		/*
 		if(mainClassInternalName != null){
 			String s = mainClassInternalName.replace('/', '.');
 			try{
@@ -106,7 +100,7 @@ public class CustomClassLoader extends URLClassLoader {
 					}
 				}
 			}
-		}
+		}*/
 	}
 
 	private static void print(File file){
@@ -124,30 +118,19 @@ public class CustomClassLoader extends URLClassLoader {
 			e2.printStackTrace();
 		}
 	}
-	
-	private sun.misc.Unsafe getUnsafe(){
-		try {
-			final Field field = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
-			field.setAccessible(true);
-			return (sun.misc.Unsafe) field.get(null);
-		} catch (ReflectiveOperationException e) {
-			e.printStackTrace();
-		}
-		return null;
-	}
-
-
 	public boolean runMain() {
-		if(mainToInvoke != null){
-			try {
-				mainToInvoke.invoke(null, new Object[]{new String[0]});
-				return true;
-			} catch(InvocationTargetException ite){
-//				print(new File(parentDirectory, ite.getCause().getStackTrace()[0].getClassName().replace('.', File.separatorChar).concat(".class")));
-				ite.getCause().printStackTrace();
-			} catch (ReflectiveOperationException e){
-				e.printStackTrace();
-			} 
+		try {
+			ProcessBuilder builder = new ProcessBuilder().inheritIO().directory(parentDirectory);
+			if(isJar){
+				builder.command("java", "-jar", jarFile.getName());
+			}else{
+				builder.command("java", mainClassName);
+			}
+			//mainToInvoke.invoke(null, new Object[]{new String[0]});
+			builder.start().waitFor();
+			return true;
+		} catch(Exception e){
+			e.printStackTrace();
 		}
 		return false;
 	}

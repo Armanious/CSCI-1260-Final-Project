@@ -707,9 +707,6 @@ class MethodWriter extends MethodVisitor {
         }
 
         maxStack = Math.max(maxStack, nStack);
-        if(maxStack == 0){
-        	System.err.println("poop");
-        }
         maxLocals = Math.max(maxLocals, currentLocals);
     }
 

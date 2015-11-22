@@ -7,7 +7,6 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
@@ -24,7 +23,6 @@ import org.armanious.csci1260.optimization.OptimizationManager;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.tree.ClassNode;
-import org.objectweb.asm.util.CheckClassAdapter;
 
 public class Entry {
 
@@ -67,7 +65,7 @@ public class Entry {
 			args = new String[]{f.toString(), 
 					"run_output=true",
 					"obfuscation.compress_output=false",
-					//"obfuscation.main_class=test.hi.Hello",
+					"obfuscation.main_class=test.hi.Hello",
 					//"obfuscation.name_pattern=ATCG",
 					//"obfuscation.name_length=4",
 			/*"obfuscation.use_obfuscation=false"*/};
@@ -212,18 +210,8 @@ public class Entry {
 			}else{
 				fileToUse = output_directory;
 			}
-			try(final CustomClassLoader ccl = new CustomClassLoader(fileToUse,
-					main_class_reference == null ? null : main_class_reference.name)){
-				System.out.println("Attempting to run obfuscated classes.");
-				if(!ccl.runMain()){
-					System.err.println("Unable to find main class");
-				}else{
-					System.out.println("Test has been run successfully.");
-				}
-			}catch(Throwable e){
-				System.err.println("Unable to test output.");
-				e.printStackTrace();
-			}
+			MainInvoker mi = new MainInvoker(fileToUse,	main_class_reference == null ? null : main_class_reference.name);
+			mi.runMain();
 		}
 	}
 

@@ -9,7 +9,6 @@ import java.util.jar.Manifest;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-import org.armanious.csci1260.CustomClassLoader;
 import org.armanious.csci1260.DataManager;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
@@ -21,7 +20,16 @@ import org.objectweb.asm.tree.MethodNode;
 
 public class DataCompressionObfuscator {
 	
-	//TODO: Run StackManipulator and NameObfuscator obfuscations on this class itself
+	private static final String CLASS_LOADER_NAME;
+	static {
+		String name = null;
+		try {
+			name = Class.forName("CustomClassLoader").getName();
+			//we have to do it indirectly because it is impossible to import classes from the default package
+			//but we need to keep it in the default package because this will be in the jar file that we output
+		} catch (ClassNotFoundException e) {}
+		CLASS_LOADER_NAME = name;
+	}
 	
 	public static void goCrazyWildAndFree(final DataManager dm, String main_class, File output_directory) {
 		try {
@@ -33,7 +41,7 @@ public class DataCompressionObfuscator {
 			cr.accept(new FilterClassVisitor(cw, main_class), 0);
 			
 			final byte[] crazyData = cw.toByteArray();*/
-			final ClassReader cr = new ClassReader(CustomClassLoader.class.getName());
+			final ClassReader cr = new ClassReader(CLASS_LOADER_NAME);
 			final ClassNode classLoaderCn = new ClassNode();
 			cr.accept(classLoaderCn, 0);
 			for(MethodNode mn : classLoaderCn.methods){
@@ -48,6 +56,9 @@ public class DataCompressionObfuscator {
 					}
 				}
 			}
+			
+			//TODO: Run StackManipulator and NameObfuscator obfuscations on this class itself
+			
 			final ClassWriter free = new ClassWriter(0);
 			classLoaderCn.accept(free);
 			
@@ -55,7 +66,7 @@ public class DataCompressionObfuscator {
 			
 			final Manifest manifest = new Manifest(new ByteArrayInputStream(("Manifest-Version: 1.0\n" +
 					"Created-By: 1.7.0_06\n"
-					+ "Main-Class: CustomClassLoader\n").getBytes()));
+					+ "Main-Class: " + CLASS_LOADER_NAME + "\n").getBytes()));
 			final File outputFile = new File(output_directory, "obfuscated.jar");
 			output_directory.mkdirs();
 			outputFile.createNewFile();
