@@ -521,7 +521,7 @@ public class StackManipulatorBeta implements Opcodes {
 				iter.remove();
 				continue;
 			}
-			if(criticalTemporaries.get(firstInedx + possibility).getContiguousBlock() == null){
+			if(criticalTemporaries.get(firstIndex + possibility).getContiguousBlock() == null){
 				iter.remove();
 				continue;
 			}
@@ -554,15 +554,20 @@ public class StackManipulatorBeta implements Opcodes {
 
 		if(firstIndex > secondIndex){
 			int tmp = firstIndex;
-			Temporary TMP = first;
 			firstIndex = secondIndex;
-			first = second;
 			secondIndex = tmp;
+			
+			Temporary TMP = first;
+			first = second;
 			second = TMP;
+			
+			ArrayList<AbstractInsnNode> temp = F;
+			F = S;
+			S = temp;
 		}
 
 		swap(F, S);
-
+		
 		//insert instructions to swap at runtime before declaration
 		int[][] toRandomize = STACK_RESTORATION_OPS[sizeBetweenInclusive][first.getType().getSize()][second.getType().getSize()];
 		if(toRandomize == null){
