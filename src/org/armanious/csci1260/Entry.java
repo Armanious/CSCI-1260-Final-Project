@@ -60,6 +60,8 @@ public class Entry {
 
 	 */
 
+	
+	//TODO make exception obfuscator optional
 	public static void main(String[] args) throws IOException {
 
 		System.out.println(Arrays.toString(args));

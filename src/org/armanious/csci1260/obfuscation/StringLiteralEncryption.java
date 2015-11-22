@@ -20,6 +20,9 @@ import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
+//TODO add FrameNode instructions to injected bytecode and change the projects output ClassWriter
+//so that it doesnt calculate Frames; and then youll be able to run the ExceptionBlockObfuscator
+//with no problems
 public class StringLiteralEncryption {
 
 	public static String decipher(String s){

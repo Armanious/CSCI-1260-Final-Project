@@ -42,7 +42,7 @@ public final class ObfuscationManager {
 		}
 		om.runAllObfuscators();
 		new StringLiteralEncryption(dm).obfuscate();
-		new ExcecptionBlockObfuscator(dm).obfuscate();
+		//new ExcecptionBlockObfuscator(dm).obfuscate();
 		//do StringLiteralEncryption after StackManipulation(and others) because it really 
 		//messes up the instructions; also if we fix reflection in the name obfuscator,
 		//we want to do that before we cipher the string literals
