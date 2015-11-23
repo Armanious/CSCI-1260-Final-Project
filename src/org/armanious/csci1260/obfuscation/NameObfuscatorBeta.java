@@ -13,6 +13,12 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Random;
 
+import org.armanious.csci1260.DataManager;
+import org.armanious.csci1260.DataManager.ConstantTemporary;
+import org.armanious.csci1260.DataManager.MethodInvocationTemporary;
+import org.armanious.csci1260.DataManager.Temporary;
+import org.armanious.csci1260.JavaStack;
+import org.armanious.csci1260.Tuple;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -33,6 +39,8 @@ import org.objectweb.asm.tree.TypeInsnNode;
 
 public class NameObfuscatorBeta extends Obfuscator {
 
+	private final DataManager dm;
+
 	private final ObfuscatedNameGenerator ong;
 	private final boolean preservePackageStructure;
 
@@ -43,10 +51,11 @@ public class NameObfuscatorBeta extends Obfuscator {
 	private final Map<String, String> fieldNameRemapping;
 	private final Map<String, String> methodNameRemapping;
 
-	public NameObfuscatorBeta(ObfuscationManager manager,
+	public NameObfuscatorBeta(DataManager dm, ObfuscationManager manager,
 			String namePattern, int nameLength, boolean preservePackageStructure,
 			File outputFileForObfuscationMap) {
 		super(manager);
+		this.dm = dm;
 		ong = new ObfuscatedNameGenerator(namePattern, nameLength);
 		this.preservePackageStructure = preservePackageStructure;
 
@@ -271,9 +280,6 @@ public class NameObfuscatorBeta extends Obfuscator {
 	}
 
 	private String obfuscateMethodFieldDesc(String desc){
-		if(desc.startsWith("[") && desc.length() > 11 && desc.substring(10).contains("[")){
-			System.err.println("walk");
-		}
 		final StringBuilder obfuscatedDesc = new StringBuilder(desc);
 		int idxOfNextObject = 0;
 		int endIdx = 0;
@@ -306,6 +312,45 @@ public class NameObfuscatorBeta extends Obfuscator {
 		populateMethodNameRemapping();
 	}
 	
+	private String attemptToObfuscteClassName(Temporary t){
+		if(t instanceof MethodInvocationTemporary){
+			//Class.forName()?
+			//ClassLoader.getSystemClassLoader().loadClass()?
+			MethodInvocationTemporary mit = (MethodInvocationTemporary) t;
+			Temporary arg = null;
+			if(mit.name.equals("loadClass") && mit.desc.equals("(Ljava/lang/String;)Ljava/lang/Class;")){
+				arg = mit.getArgs()[1]; //0 = this
+			}else if(mit.name.equals("forName") && 
+					(mit.desc.equals("(Ljava/lang/String;)Ljava/lang/Class;") || mit.desc.equals("(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;"))){
+				arg = mit.getArgs()[0];
+			}
+			if(arg != null && arg instanceof ConstantTemporary){
+				ConstantTemporary ct = (ConstantTemporary) arg;
+				String val = ((String) ct.getValue()).replace('.', '/');
+				String obfuscated = classNameRemapping.get(val);
+				if(obfuscated != null){
+					ct.setValue((obfuscatePackage(val) + obfuscated).replace('/', '.')); //set binary name
+				}
+				return ((String) ct.getValue()).replace('.', '/'); //return internal name
+			}
+		}else if(t instanceof ConstantTemporary){
+			ConstantTemporary ct = (ConstantTemporary) t;
+			ct.setValue(Type.getType(obfuscateMethodFieldDesc( ((Type) ct.getValue()).getDescriptor() )));
+			return ((Type)ct.getValue()).getInternalName();
+		}
+		return null;
+	}
+	
+	private String findDeobfuscatedClassOwner(String obfuscated){
+		for(String key : classNameRemapping.keySet()){
+			String fullyObfuscated = obfuscatePackage(key) + classNameRemapping.get(key);
+			if(obfuscated.equals(fullyObfuscated)){
+				return key;
+			}
+		}
+		return null;
+	}
+
 	@Override
 	public void obfuscate() {
 		fillObfuscationMaps();
@@ -404,7 +449,57 @@ public class NameObfuscatorBeta extends Obfuscator {
 						break;
 					case AbstractInsnNode.METHOD_INSN:
 						MethodInsnNode min = (MethodInsnNode)ain;
-
+						if(min.owner.equals("java/lang/Class")){
+							if(min.name.equals("forName")){
+								final Tuple<JavaStack, Temporary[]> state = dm.methodInformations.get(mn).statePerInsn.get(ain.getPrevious());
+								if(state != null && state.val1 != null){
+									JavaStack stackBefore = state.val1;
+									Temporary nameOfClass = stackBefore.peek();
+									if(nameOfClass instanceof ConstantTemporary){
+										ConstantTemporary ct = (ConstantTemporary) nameOfClass;
+										String s = ((String) ct.getValue()).replace('.', '/');
+										String obfuscated = classNameRemapping.get(s);
+										if(obfuscated != null){
+											ct.setValue((obfuscatePackage(s) + obfuscated).replace('/', '.'));
+										}
+									}
+								}
+							}else if(min.name.equals("getMethod") || min.name.equals("getDeclaredMethod")){
+								Temporary temp = dm.methodInformations.get(mn).temporaries.get(ain);
+								if(temp != null && temp instanceof MethodInvocationTemporary){
+									MethodInvocationTemporary mit = (MethodInvocationTemporary) temp;
+									Temporary clazzInstance = mit.getArgs()[0];
+									if(clazzInstance.getConstancy() == Temporary.CONSTANT && mit.getArgs()[1] instanceof ConstantTemporary){
+										String obfuscatedClassOwner = attemptToObfuscteClassName(clazzInstance);
+										if(obfuscatedClassOwner != null){
+											String unobfuscatedClassOwner = findDeobfuscatedClassOwner(obfuscatedClassOwner);
+											String methodName = (String) ((ConstantTemporary)mit.getArgs()[1]).getValue();
+											String obfuscatedMethodName = methodNameRemapping.get(unobfuscatedClassOwner + "." + methodName);
+											if(obfuscatedMethodName != null){
+												((ConstantTemporary)mit.getArgs()[1]).setValue(obfuscatedMethodName);
+											}
+										}
+									}
+								}
+							}else if(min.name.equals("getField") || min.name.equals("getDeclaredField")){
+								Temporary temp = dm.methodInformations.get(mn).temporaries.get(ain);
+								if(temp != null && temp instanceof MethodInvocationTemporary){
+									MethodInvocationTemporary mit = (MethodInvocationTemporary) temp;
+									Temporary clazzInstance = mit.getArgs()[0];
+									if(clazzInstance.getConstancy() == Temporary.CONSTANT && mit.getArgs()[1] instanceof ConstantTemporary){
+										String obfuscatedClassOwner = attemptToObfuscteClassName(clazzInstance);
+										if(obfuscatedClassOwner != null){
+											String unobfuscatedClassOwner = findDeobfuscatedClassOwner(obfuscatedClassOwner);
+											String methodName = (String) ((ConstantTemporary)mit.getArgs()[1]).getValue();
+											String obfuscatedMethodName = fieldNameRemapping.get(unobfuscatedClassOwner + "." + methodName);
+											if(obfuscatedMethodName != null){
+												((ConstantTemporary)mit.getArgs()[1]).setValue(obfuscatedMethodName);
+											}
+										}
+									}
+								}
+							}
+						}
 						if(min.owner.charAt(0) == '['){
 							//[Lorg/armanious/csci1260/Temporary; .clone(); for example
 							min.owner = obfuscateMethodFieldDesc(min.owner);
@@ -414,7 +509,7 @@ public class NameObfuscatorBeta extends Obfuscator {
 								min.name = obfuscatedName;
 							}
 						}
-						
+
 						min.desc = obfuscateMethodFieldDesc(min.desc);
 
 						obfuscatedOwner = classNameRemapping.get(min.owner);
@@ -451,12 +546,24 @@ public class NameObfuscatorBeta extends Obfuscator {
 						}else{
 							String obfuscatedInternalName = classNameRemapping.get(tin.desc);
 							if(obfuscatedInternalName != null){
-								tin.desc = obfuscatePackage(tin.desc) + obfuscatedInternalName;
+								tin.desc = (obfuscatePackage(tin.desc) + obfuscatedInternalName);
 							}
 						}
 						break;
 					case AbstractInsnNode.LDC_INSN:
 						LdcInsnNode lin = (LdcInsnNode) ain;
+						if(lin.cst instanceof Type){
+							lin.cst = Type.getType(obfuscateMethodFieldDesc(((Type)lin.cst).getDescriptor()));
+						}else if(lin.cst instanceof String){
+
+							String s = ((String) lin.cst).replace('.', '/');
+							String obfuscated;
+							if((obfuscated = classNameRemapping.get(s)) != null){
+								lin.cst = (obfuscatePackage(s) + obfuscated).replace('/', '.');
+							}else{
+								
+							}
+						}
 						//TODO
 						break;
 					case AbstractInsnNode.FRAME:

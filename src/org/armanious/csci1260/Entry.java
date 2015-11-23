@@ -60,6 +60,8 @@ public class Entry {
 
 	 */
 
+	
+	//TODO make exception obfuscator optional
 	public static void main(String[] args) throws IOException {
 
 		System.out.println(Arrays.toString(args));
@@ -258,14 +260,14 @@ public class Entry {
 			if(!fileForClass.getParentFile().exists()){
 				fileForClass.getParentFile().mkdirs();
 			}
-			final ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS){
+			final ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES){
 				@Override
 				protected String getCommonSuperClass(String type1, String type2) {
 					Type superClass = dm.getCommonSuperType(Type.getType(type1), Type.getType(type2));
 					if(superClass == null){
 						return super.getCommonSuperClass(type1, type2);
 					}
-					return superClass == null ? super.getCommonSuperClass(type1, type2) : (superClass.getDescriptor().length() == 1 ? superClass.getDescriptor() : superClass.getInternalName());
+					return (superClass.getDescriptor().length() == 1 ? superClass.getDescriptor() : superClass.getInternalName());
 				}
 			};
 			try{

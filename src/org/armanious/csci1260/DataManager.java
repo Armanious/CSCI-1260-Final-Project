@@ -280,34 +280,71 @@ public class DataManager {
 		}
 
 	}
+	
+	private static final String[] KNOWN_NO_SIDE_EFFECTS = {
+			"java/lang/Class.getMethod(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Method;",
+			"java/lang/Class.getDeclaredMethod(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Method;",
+			"java/lang/Class.getField(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Field;",
+			"java/lang/Class.getDeclaredField(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Field;",
+			"java/lang/Class.forName(Ljava/lang/String;)Ljava/lang/Class;",
+			"java/lang/Class.forName(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;",
+	};
+	static {
+		Arrays.sort(KNOWN_NO_SIDE_EFFECTS);
+	}
 
-	public static class MethodInvocationTemporary extends Temporary {
+	//NOT static because we need access to the enclosing DataManager class to determine side effects
+	public class MethodInvocationTemporary extends Temporary {
 
 		final Temporary[] args;
-		final String owner;
-		final String name;
+		public final String owner;
+		public final String name;
+		public final String desc;
 		final boolean isStatic;
-		final boolean hasSideEffects;
+		
+		private boolean calculatedSideEffects = false;
+		boolean hasSideEffects = true;
 
-		public MethodInvocationTemporary(boolean isStatic, Temporary[] args, String owner, String name, Type returnType, boolean hasSideEffects){
+		public MethodInvocationTemporary(boolean isStatic, Temporary[] args, String owner, String name, String desc, Type returnType){
 			super(null, returnType);
 			this.args = args;
 			this.owner = owner;
 			this.name = name;
 			this.isStatic = isStatic;
-			this.hasSideEffects = hasSideEffects;
+			this.desc = desc;
 		}
 
-		public MethodInvocationTemporary(AbstractInsnNode decl, Temporary[] args, String owner, String name, Type returnType, boolean hasSideEffects){
+		public MethodInvocationTemporary(AbstractInsnNode decl, Temporary[] args, String owner, String name, String desc, Type returnType){
 			super(decl, returnType);
 			this.args = args;
 			this.owner = owner;
 			this.name = name;
+			this.desc = desc;
 			isStatic = decl.getOpcode() == Opcodes.INVOKESTATIC || decl.getOpcode() == Opcodes.INVOKEDYNAMIC;
-			this.hasSideEffects = hasSideEffects;
 			for(Temporary arg : args){
 				arg.addReference(decl, null);
 			}
+		}
+		
+		public boolean hasSideEffects(){
+			if(!calculatedSideEffects){
+				
+				ClassNode cn = DataManager.this.getClassNode(owner);
+				if(cn == null){
+					//not a user-specified method, might be library
+					String s = owner + "." + name + desc;
+					hasSideEffects = Arrays.binarySearch(KNOWN_NO_SIDE_EFFECTS, s) < 0;
+					calculatedSideEffects = true;
+					return hasSideEffects;
+				}
+				MethodInformation mi = DataManager.this.methodInformations.get(cn.getMethodNode(name, desc));
+				if(mi == null){
+					return true; //do not set calculated side effects = true
+				}
+				hasSideEffects = mi.fieldsWritten.size() > 0;				
+				calculatedSideEffects = true;
+			}
+			return hasSideEffects;
 		}
 
 		public Temporary[] getArgs(){
@@ -316,7 +353,7 @@ public class DataManager {
 
 		@Override
 		public int getConstancy() {
-			return hasSideEffects ? NOT_CONSTANT : mergeConstancy(args);
+			return hasSideEffects() ? NOT_CONSTANT : mergeConstancy(args);
 		}
 
 		@Override
@@ -362,16 +399,15 @@ public class DataManager {
 
 		@Override
 		protected Temporary clone() {
-			return new MethodInvocationTemporary(isStatic, args.clone(), owner, name, getType(), hasSideEffects);
+			return new MethodInvocationTemporary(isStatic, args.clone(), owner, name, desc, getType());
 		}
 
 	}
 
-	public static class InvokeSpecialTemporary extends MethodInvocationTemporary {
+	public class InvokeSpecialTemporary extends MethodInvocationTemporary {
 
-		private final boolean isCallingSuper;
 
-		public InvokeSpecialTemporary(AbstractInsnNode insn, Temporary[] args, String name, Type defaultReturnType, boolean hasSideEffects, boolean isCallingSuper) {
+		public InvokeSpecialTemporary(AbstractInsnNode insn, Temporary[] args, String name, String desc) {
 			//args will include the ObjectInstance Temporary
 			/*
 			 * new X  //X
@@ -380,35 +416,35 @@ public class DataManager {
 			 * invokespecial X //POPS ALL 3; pushed Constructor(X)
 			 * astore 2 //a2 = Constructor(X) empty stack
 			 */
-			super(insn, args, args[0].getType().getInternalName(), name, name.equals("<init>") ? (isCallingSuper ? Type.VOID_TYPE : args[0].getType()) : defaultReturnType, hasSideEffects);
-			this.isCallingSuper = isCallingSuper;
-		}
-
-		public boolean isCallingSuper(){
-			return isCallingSuper;
+			super(insn, args, args[0].getType().getInternalName(), name, desc, args[0].getType());
 		}
 
 		@Override
 		public String toString() {
-			return "new " + owner + Arrays.toString(Arrays.copyOfRange(args, isCallingSuper ? 1 : 2, args.length)).replace('[', '(').replace(']', ')');
+			return "new " + owner + Arrays.toString(Arrays.copyOfRange(args, 2, args.length)).replace('[', '(').replace(']', ')');
 		}
 
 		@Override
 		protected Temporary clone() {
-			return new InvokeSpecialTemporary(getDeclaration(), args, name, getType(), hasSideEffects, isCallingSuper);
+			return new InvokeSpecialTemporary(getDeclaration(), args, name, desc);
 		}
 
 	}
 
 	public static class ConstantTemporary extends Temporary {
 
-		private final Object value;
+		private Object value;
 
 		public ConstantTemporary(AbstractInsnNode decl, Object value, Type type){
 			super(decl, type);
 			this.value = value;
 		}
-
+		
+		public void setValue(Object newValue){
+			((LdcInsnNode)getDeclaration()).cst = newValue;
+			value = newValue;
+		}
+		
 		@Override
 		public int getConstancy() {
 			return CONSTANT;
@@ -432,7 +468,7 @@ public class DataManager {
 		}
 
 		public Object getValue(){
-			return value;
+			return ((LdcInsnNode)getDeclaration()).cst;
 		}
 
 		@Override
@@ -1423,10 +1459,11 @@ public class DataManager {
 		public final HashMap<BasicBlock, LoopEntry> loopRoots = new HashMap<>();
 		public final HashMap<BasicBlock, LoopEntry> loops = new HashMap<>();
 
-		public final HashSet<Temporary> temporaries = new HashSet<>();
+		public final HashMap<AbstractInsnNode, Temporary> temporaries = new HashMap<>();
 		public final HashMap<BasicBlock, Set<Temporary>> temporariesRead = new HashMap<>();
-		public final HashMap<BasicBlock, Set<Temporary>> temporariesWritten = new HashMap<>();
-
+		//public final HashMap<BasicBlock, Set<Temporary>> temporariesWritten = new HashMap<>();
+		public final HashMap<AbstractInsnNode, FieldTemporary> fieldsWritten = new HashMap<>();
+		
 		//public final HashMap<AbstractInsnNode, Tuple<Temporary[], Temporary>> operandsResultPerInsn = new HashMap<>();
 		public final HashMap<AbstractInsnNode, Tuple<JavaStack, Temporary[]>> statePerInsn = new HashMap<>();
 
@@ -1479,7 +1516,7 @@ public class DataManager {
 
 			temporaries.clear();
 			temporariesRead.clear();
-			temporariesWritten.clear();
+			fieldsWritten.clear();
 			mn.instructions.get(0);
 
 			mn.instructions.get(0);
@@ -2068,7 +2105,7 @@ public class DataManager {
 			read.add(tmp);
 		}
 
-		@Deprecated
+		/*@Deprecated
 		private void addToTemporariesWritten(BasicBlock block, Temporary tmp){
 			temporaries.add(tmp);
 			Set<Temporary> written = temporariesWritten.get(block);
@@ -2084,7 +2121,7 @@ public class DataManager {
 				tmp.constancy = Temporary.NOT_CONSTANT;
 				//TODO FIXME I don't know if this works!
 			}*/
-		}
+		//}
 
 		private FieldTemporary getFieldTemporary(AbstractInsnNode instruction, MethodNode mn, Temporary objectRef, String owner, String name, String desc, Temporary toStore){
 			FieldTemporary instance = null;
@@ -2408,34 +2445,40 @@ public class DataManager {
 							if(stack.peek() instanceof ObjectInstanceTemporary){
 								((ObjectInstanceTemporary)stack.peek()).setIsDupped(true);
 							}
+							temporaries.put(executingInstruction, stack.peek());
 							break;
 						case DUP_X1:
 							//element0, element1, element2 --->  element0, element2, element1, element2
-							stack.insertElementAt(stack.peek().cloneOnInstruction(executingInstruction), executingInstruction, stack.size() - 2);
+							Temporary cloned = stack.peek().cloneOnInstruction(executingInstruction);
+							stack.insertElementAt(cloned, executingInstruction, stack.size() - 2);
+							temporaries.put(executingInstruction, cloned);
 							break;
 						case DUP_X2:
-							top = stack.peek();
 							Temporary beneathTop = stack.elementAt(stack.size() - 2);
+							Temporary topCloned = stack.peek().cloneOnInstruction(executingInstruction);
 							if(beneathTop.getType() == Type.DOUBLE_TYPE || beneathTop.getType() == Type.LONG_TYPE){
-								stack.insertElementAt(top.cloneOnInstruction(executingInstruction), executingInstruction, stack.size() - 2);
+								stack.insertElementAt(topCloned, executingInstruction, stack.size() - 2);
 							}else{
-								stack.insertElementAt(top.cloneOnInstruction(executingInstruction), executingInstruction, stack.size() - 3);
+								stack.insertElementAt(topCloned.cloneOnInstruction(executingInstruction), executingInstruction, stack.size() - 3);
 							}
+							temporaries.put(executingInstruction, topCloned);
 							break;
 						case DUP2:
-							top = stack.peek();
-							if(top.getType() == Type.DOUBLE_TYPE || top.getType() == Type.LONG_TYPE){
-								stack.push(top.cloneOnInstruction(executingInstruction), executingInstruction);
+							topCloned = stack.peek().cloneOnInstruction(executingInstruction);
+							if(topCloned.getType() == Type.DOUBLE_TYPE || topCloned.getType() == Type.LONG_TYPE){
+								stack.push(topCloned, executingInstruction);
 							}else{
 								beneathTop = stack.elementAt(stack.size() - 2);
 								stack.push(beneathTop.cloneOnInstruction(executingInstruction), executingInstruction);
-								stack.push(top.cloneOnInstruction(executingInstruction), executingInstruction);
+								stack.push(topCloned, executingInstruction);
 							}
+							temporaries.put(executingInstruction, topCloned);
+							//known limitation: can't associate two values with one key in a map
 							break;
 						case DUP2_X1:
-							top = stack.peek();
-							if(top.getType() == Type.DOUBLE_TYPE || top.getType() == Type.LONG_TYPE){
-								stack.insertElementAt(top.cloneOnInstruction(executingInstruction), executingInstruction, stack.size() - 2); 
+							topCloned = stack.peek().cloneOnInstruction(executingInstruction);
+							if(topCloned.getType() == Type.DOUBLE_TYPE || topCloned.getType() == Type.LONG_TYPE){
+								stack.insertElementAt(topCloned, executingInstruction, stack.size() - 2); 
 							}else{
 								//E0, E1, E2, E3 ----> E0, E2, E3, E1, E2, E3
 								//top == E3
@@ -2443,21 +2486,22 @@ public class DataManager {
 								//beneathTop == E2
 								stack.insertElementAt(beneathTop.cloneOnInstruction(executingInstruction), executingInstruction, stack.size() - 3);
 								//E0, E2, E1, E2, E3
-								stack.insertElementAt(top.cloneOnInstruction(executingInstruction), executingInstruction, stack.size() - 3);
+								stack.insertElementAt(topCloned, executingInstruction, stack.size() - 3);
 								//E0, E2, E3, E1, E2, E3
 							}
+							temporaries.put(executingInstruction, topCloned);
 							break;
 						case DUP2_X2:
-							top = stack.peek();
+							topCloned = stack.peek().cloneOnInstruction(executingInstruction);
 							beneathTop = stack.elementAt(stack.size() - 2);
 							//Temporary thirdFromTop = temporariesStack.get(temporariesStack.size() - 2);
-							if(top.getType() == Type.DOUBLE_TYPE || top.getType() == Type.LONG_TYPE){
+							if(topCloned.getType() == Type.DOUBLE_TYPE || topCloned.getType() == Type.LONG_TYPE){
 								if(beneathTop.getType() == Type.DOUBLE_TYPE || beneathTop.getType() == Type.LONG_TYPE){
 									//D0, D1, D2 --> D0, D2, D1, D2
-									stack.insertElementAt(top.cloneOnInstruction(executingInstruction), executingInstruction, stack.size() - 2);
+									stack.insertElementAt(topCloned, executingInstruction, stack.size() - 2);
 								}else{
 									//E0, E1, E2, D3 --> E0, D3, E1, E2, D3
-									stack.insertElementAt(top.cloneOnInstruction(executingInstruction), executingInstruction, stack.size() - 3);
+									stack.insertElementAt(topCloned, executingInstruction, stack.size() - 3);
 								}
 							}else{
 								Temporary thirdFromTop = stack.elementAt(stack.size() - 3);
@@ -2466,11 +2510,11 @@ public class DataManager {
 									//E0, E2, D1, E2, E3
 									stack.insertElementAt(beneathTop.cloneOnInstruction(executingInstruction), executingInstruction, stack.size() - 3);
 									//E0, E2, E3, D1, E2, E3
-									stack.insertElementAt(top.cloneOnInstruction(executingInstruction), executingInstruction, stack.size() - 3);
+									stack.insertElementAt(topCloned, executingInstruction, stack.size() - 3);
 								}else{
 									//E0, E1, E2, E3, E4 --> E0, E3, E4 E1, E2, E3, E4
 									stack.insertElementAt(beneathTop.cloneOnInstruction(executingInstruction), executingInstruction, stack.size() - 4);
-									stack.insertElementAt(top.cloneOnInstruction(executingInstruction), executingInstruction, stack.size() - 4);
+									stack.insertElementAt(topCloned, executingInstruction, stack.size() - 4);
 								}
 							}
 							break;
@@ -2658,6 +2702,7 @@ public class DataManager {
 							popped = new Temporary[1];
 							valueToStore = popped[0] = stack.pop();
 							toPush = getFieldTemporary(executingInstruction, mn, null, fin.owner, fin.name, fin.desc, valueToStore);
+							fieldsWritten.put(executingInstruction, (FieldTemporary)toPush);
 							break;
 						case GETFIELD:
 							fin = (FieldInsnNode) executingInstruction;
@@ -2672,7 +2717,7 @@ public class DataManager {
 							valueToStore = popped[0] = stack.pop();
 							objectRef = popped[1] = stack.pop();
 							toPush = getFieldTemporary(executingInstruction, mn, objectRef, fin.owner, fin.name, fin.desc, valueToStore);
-
+							fieldsWritten.put(executingInstruction, (FieldTemporary)toPush);
 							break;
 						case INVOKESPECIAL:
 							MethodInsnNode min = (MethodInsnNode) executingInstruction;
@@ -2704,7 +2749,7 @@ public class DataManager {
 								for(int i = 0; i < popped.length; i++){
 									popped[popped.length - i - 1] = stack.pop();
 								}
-								toPush = new InvokeSpecialTemporary(executingInstruction, popped, min.name, Type.VOID_TYPE, true, false);
+								toPush = new InvokeSpecialTemporary(executingInstruction, popped, min.name, min.desc);
 								((ObjectInstanceTemporary)instance).setIsDupped(false);
 								break;
 							}else{
@@ -2724,7 +2769,7 @@ public class DataManager {
 								popped[popped.length - i - 1] = stack.pop();
 							}
 							Type retType = Type.getReturnType(min.desc);
-							toPush = new MethodInvocationTemporary(executingInstruction, popped, min.owner, min.name, retType, true);
+							toPush = new MethodInvocationTemporary(executingInstruction, popped, min.owner, min.name, min.desc, retType);
 							break;
 						case INVOKEDYNAMIC:
 							InvokeDynamicInsnNode idin = (InvokeDynamicInsnNode) executingInstruction;
@@ -2735,7 +2780,7 @@ public class DataManager {
 								popped[popped.length - i - 1] = stack.pop();
 							}
 							retType = Type.getReturnType(idin.desc);
-							toPush = new MethodInvocationTemporary(executingInstruction, popped, idin.bsm.toString(), idin.name, retType, false);
+							toPush = new MethodInvocationTemporary(executingInstruction, popped, idin.bsm.toString(), idin.name, idin.desc, retType);
 
 							break;
 						case NEW:
@@ -2829,7 +2874,7 @@ public class DataManager {
 							if(toPush.getType() != Type.VOID_TYPE){
 								stack.push(toPush, executingInstruction);
 							}
-							temporaries.add(toPush); //we want to add methods that return VOID to temporaries for StackManipulator
+							temporaries.put(executingInstruction, toPush); //we want to add methods that return VOID to temporaries for StackManipulator
 						}
 						if(stack.size() > maxStack){
 							maxStack = stack.size();
