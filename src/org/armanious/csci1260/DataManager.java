@@ -8,13 +8,16 @@ import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
@@ -47,7 +50,7 @@ public class DataManager {
 	public static abstract class Temporary {
 
 		public static int numTemporaries = 0;
-		public static ArrayList<Temporary> GLOBAL_TEMPORARIES = new ArrayList<>();
+		public static List<Temporary> GLOBAL_TEMPORARIES = Collections.synchronizedList(new ArrayList<Temporary>());
 
 		public static final int NOT_CONSTANT = -1;
 		public static final int CONSTANCY_UNKNOWN = 0;
@@ -280,7 +283,7 @@ public class DataManager {
 		}
 
 	}
-	
+
 	private static final String[] KNOWN_NO_SIDE_EFFECTS = {
 			"java/lang/Class.getMethod(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Method;",
 			"java/lang/Class.getDeclaredMethod(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Method;",
@@ -301,7 +304,7 @@ public class DataManager {
 		public final String name;
 		public final String desc;
 		final boolean isStatic;
-		
+
 		private boolean calculatedSideEffects = false;
 		boolean hasSideEffects = true;
 
@@ -325,10 +328,10 @@ public class DataManager {
 				arg.addReference(decl, null);
 			}
 		}
-		
+
 		public boolean hasSideEffects(){
 			if(!calculatedSideEffects){
-				
+
 				ClassNode cn = DataManager.this.getClassNode(owner);
 				if(cn == null){
 					//not a user-specified method, might be library
@@ -439,12 +442,12 @@ public class DataManager {
 			super(decl, type);
 			this.value = value;
 		}
-		
+
 		public void setValue(Object newValue){
 			((LdcInsnNode)getDeclaration()).cst = newValue;
 			value = newValue;
 		}
-		
+
 		@Override
 		public int getConstancy() {
 			return CONSTANT;
@@ -1125,19 +1128,22 @@ public class DataManager {
 
 	public class PhiTemporary extends Temporary {
 
-		private final Temporary[] mergedTemporaries;
-		private final int index;
-
-		public PhiTemporary(Temporary[] toMerge, int index, Type knownType) {
+		public final Temporary[] mergedTemporaries;
+		public final int index;
+		public final BasicBlock initialBlock;
+		
+		public PhiTemporary(Temporary[] toMerge, int index, Type knownType, BasicBlock block) {
 			super(null, knownType);
 			this.mergedTemporaries = toMerge;
 			this.index = index;
+			this.initialBlock = block;
 		}
 
-		public PhiTemporary(Temporary[] toMerge, int index) {
+		public PhiTemporary(Temporary[] toMerge, int index, BasicBlock block) {
 			super(null, getCommonSuperType(toMerge));
 			this.mergedTemporaries = toMerge;
 			this.index = index;
+			this.initialBlock = block;
 		}
 
 		@Override
@@ -1177,7 +1183,7 @@ public class DataManager {
 
 		@Override
 		protected Temporary clone() {
-			return new PhiTemporary(mergedTemporaries, index, getType());
+			return new PhiTemporary(mergedTemporaries, index, getType(), initialBlock);
 		}
 
 	}
@@ -1463,7 +1469,7 @@ public class DataManager {
 		public final HashMap<BasicBlock, Set<Temporary>> temporariesRead = new HashMap<>();
 		//public final HashMap<BasicBlock, Set<Temporary>> temporariesWritten = new HashMap<>();
 		public final HashMap<AbstractInsnNode, FieldTemporary> fieldsWritten = new HashMap<>();
-		
+
 		//public final HashMap<AbstractInsnNode, Tuple<Temporary[], Temporary>> operandsResultPerInsn = new HashMap<>();
 		public final HashMap<AbstractInsnNode, Tuple<JavaStack, Temporary[]>> statePerInsn = new HashMap<>();
 
@@ -2125,15 +2131,17 @@ public class DataManager {
 
 		private FieldTemporary getFieldTemporary(AbstractInsnNode instruction, MethodNode mn, Temporary objectRef, String owner, String name, String desc, Temporary toStore){
 			FieldTemporary instance = null;
-			for(Temporary tmp : Temporary.GLOBAL_TEMPORARIES){
-				if(tmp instanceof FieldTemporary){
-					FieldTemporary ft = (FieldTemporary) tmp;
-					//essentially copy ft.equals(o) except without creating a new object
-					if(owner.equals(ft.owner) && name.equals(ft.name)){
-						Temporary otherObjectRef = ft.getObjectRef();
-						if(objectRef == otherObjectRef || (objectRef != null && otherObjectRef != null && objectRef.equals(otherObjectRef))){
-							instance = ft;
-							break;
+			synchronized(Temporary.GLOBAL_TEMPORARIES){
+				for(Temporary tmp : Temporary.GLOBAL_TEMPORARIES){
+					if(tmp instanceof FieldTemporary){
+						FieldTemporary ft = (FieldTemporary) tmp;
+						//essentially copy ft.equals(o) except without creating a new object
+						if(owner.equals(ft.owner) && name.equals(ft.name)){
+							Temporary otherObjectRef = ft.getObjectRef();
+							if(objectRef == otherObjectRef || (objectRef != null && otherObjectRef != null && objectRef.equals(otherObjectRef))){
+								instance = ft;
+								break;
+							}
 						}
 					}
 				}
@@ -2259,7 +2267,7 @@ public class DataManager {
 						}
 
 						if(shouldActuallyMerge){
-							locals.set(i, new PhiTemporary(toMerge, i));
+							locals.set(i, new PhiTemporary(toMerge, i, executingBlock));
 						}else if(toMerge[0] != null){
 							//when !shouldActuallyMergge,
 							//toMerge[0] == null iff the local was not set in any predecessor
@@ -2412,6 +2420,7 @@ public class DataManager {
 							valueToStore.addReference(executingInstruction, mn);
 							locals.set(vvi.var, valueToStore);
 							executingBlock.localsSetInBlock.put(vvi.var, locals.get(vvi.var));
+							temporaries.put(executingInstruction, valueToStore.cloneOnInstruction(executingInstruction));
 							//addToTemporariesWritten(executingBlock, valueToStore);
 							break;
 						case IASTORE:
@@ -2426,6 +2435,7 @@ public class DataManager {
 							valueToStore = popped[0] = stack.pop();
 							index = popped[1] = stack.pop();
 							arrayRef = popped[2] = stack.pop();
+							temporaries.put(executingInstruction, arrayRef.cloneOnInstruction(executingInstruction));
 							//addToTemporariesWritten(executingBlock, arrayRef);//new ArrayReferenceTemporary(executingInstruction, arrayRef, index));
 							break;
 						case POP:
@@ -2980,7 +2990,7 @@ public class DataManager {
 	public final HashMap<FieldNode, Set<Tuple<MethodNode, FieldInsnNode>>> fieldsModifiedByMethodsMap = new HashMap<>();
 	public final HashMap<Object, MethodCallGraphNode> methodCallGraph = new HashMap<>();
 	//key is either MethodNode or Executable, the latter of which can be a Method or Constructor (reflection)
-	public final HashMap<MethodNode, MethodInformation> methodInformations = new HashMap<>();
+	public final Map<MethodNode, MethodInformation> methodInformations = new ConcurrentHashMap<>();
 
 	public DataManager(ArrayList<ClassNode> classes){
 		this.classes = classes;
@@ -3187,14 +3197,21 @@ public class DataManager {
 			}
 		}
 
-		for(ClassNode cn : classes){
+		classes.parallelStream().forEach((cn) -> cn.methods.parallelStream().forEach((mn) -> {
+			if(Modifier.isNative(mn.access) || Modifier.isAbstract(mn.access)){
+				return;
+			}
+			methodInformations.put(mn, new MethodInformation(mn));
+		}));
+
+		/*for(ClassNode cn : classes){
 			for(MethodNode mn : cn.methods){
 				if(Modifier.isNative(mn.access) || Modifier.isAbstract(mn.access)){
 					continue;
 				}
 				methodInformations.put(mn, new MethodInformation(mn));
 			}
-		}
+		}*/
 
 		//		for(ClassNode cn : classes){
 		//			for(FieldNode fn : cn.fields){
