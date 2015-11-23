@@ -100,7 +100,10 @@ public class DataManager {
 		public ArrayList<Temporary> getCriticalTemporaries(){
 			ArrayList<Temporary> t = new ArrayList<Temporary>();
 			addCriticalTemporariesToList(t);
-			t.sort((t1,t2) -> t1.getDeclaration().getIndex() - t2.getDeclaration().getIndex());
+			t.sort((t1,t2) -> {
+				return (t1.getDeclaration() == null ? Integer.MAX_VALUE : t1.getDeclaration().getIndex())
+						- (t2.getDeclaration() == null ? Integer.MAX_VALUE : t2.getDeclaration().getIndex());
+			});
 			return t;
 		}
 
@@ -344,7 +347,18 @@ public class DataManager {
 				if(mi == null){
 					return true; //do not set calculated side effects = true
 				}
-				hasSideEffects = mi.fieldsWritten.size() > 0;				
+				hasSideEffects = mi.fieldsWritten.size() > 0;
+				if(!hasSideEffects){
+					MethodCallGraphNode mcgn = DataManager.this.methodCallGraph.get(mi.mn);
+					//TODO FIXME
+					for(MethodCallGraphNode calls : mcgn.successors){
+						if(calls.mn == null){
+							hasSideEffects = true; //fix for library calls
+						}else{
+							hasSideEffects = true;//DataManager.this.methodInformations.get(calls.mn).hasSideEffects() ???
+						}
+					}
+				}
 				calculatedSideEffects = true;
 			}
 			return hasSideEffects;
@@ -510,7 +524,7 @@ public class DataManager {
 		}
 
 		public String toString(){
-			return index == -1 ? "this" : (type.toString() + " (Param " + index + ")");
+			return index == -1 ? "this" : ("local_" + index);//(type.toString() + " (Param " + index + ")");
 		}
 
 		@Override
@@ -1158,7 +1172,7 @@ public class DataManager {
 
 		@Override
 		public String toString() {
-			return "(Local " + index + ": " + getType() + ")";
+			return "local_" + index;//"(Local " + index + ": " + getType() + ")";
 		}
 
 		@Override
@@ -1254,16 +1268,16 @@ public class DataManager {
 	public static class MethodCallGraphNode {
 
 		public final MethodNode mn;
-		public final Set<MethodCallGraphNode> toNodes = new HashSet<>();
-		public final Set<MethodCallGraphNode> fromNodes = new HashSet<>();
+		public final Set<MethodCallGraphNode> successors = new HashSet<>();
+		public final Set<MethodCallGraphNode> predecessors = new HashSet<>();
 
 		public MethodCallGraphNode(MethodNode mn){
 			this.mn = mn;
 		}
 
-		public void addToNode(MethodCallGraphNode destMcgn) {
-			toNodes.add(destMcgn);
-			destMcgn.fromNodes.add(this);
+		public void addSuccessor(MethodCallGraphNode destMcgn) {
+			successors.add(destMcgn);
+			destMcgn.predecessors.add(this);
 		}
 
 	}
@@ -1380,7 +1394,7 @@ public class DataManager {
 	}
 
 	private static final Level DEFAULT_LOG_LEVEL = Level.FINE;
-	private static final String TO_DEBUG = null;//"test/hi/Hello$Inner$InnerIsAPain.<init>(Ltest/hi/Hello$Inner;)V";
+	private static final String TO_DEBUG = null;//"org/objectweb/asm/tree/InsnList.contains(Lorg/objectweb/asm/tree/AbstractInsnNode;)Z";
 
 	private static final Logger log = Logger.getLogger("DataManager");
 	static {
@@ -1469,7 +1483,7 @@ public class DataManager {
 		public final HashMap<BasicBlock, Set<Temporary>> temporariesRead = new HashMap<>();
 		//public final HashMap<BasicBlock, Set<Temporary>> temporariesWritten = new HashMap<>();
 		public final HashMap<AbstractInsnNode, FieldTemporary> fieldsWritten = new HashMap<>();
-
+		
 		//public final HashMap<AbstractInsnNode, Tuple<Temporary[], Temporary>> operandsResultPerInsn = new HashMap<>();
 		public final HashMap<AbstractInsnNode, Tuple<JavaStack, Temporary[]>> statePerInsn = new HashMap<>();
 
@@ -3190,28 +3204,28 @@ public class DataManager {
 								System.err.println("Error adding " + min.owner + "#" + min.name + min.desc + " to method call graph.");
 								continue;
 							}
-							mcgn.addToNode(destMcgn);
+							mcgn.addSuccessor(destMcgn);
 						}
 					}
 				}
 			}
 		}
 
-		classes.parallelStream().forEach((cn) -> cn.methods.parallelStream().forEach((mn) -> {
+		/*classes.parallelStream().forEach((cn) -> cn.methods.parallelStream().forEach((mn) -> {
 			if(Modifier.isNative(mn.access) || Modifier.isAbstract(mn.access)){
 				return;
 			}
 			methodInformations.put(mn, new MethodInformation(mn));
-		}));
+		}));*/
 
-		/*for(ClassNode cn : classes){
+		for(ClassNode cn : classes){
 			for(MethodNode mn : cn.methods){
 				if(Modifier.isNative(mn.access) || Modifier.isAbstract(mn.access)){
 					continue;
 				}
 				methodInformations.put(mn, new MethodInformation(mn));
 			}
-		}*/
+		}
 
 		//		for(ClassNode cn : classes){
 		//			for(FieldNode fn : cn.fields){

@@ -60,7 +60,7 @@ public class NameObfuscatorBeta extends Obfuscator {
 		this.preservePackageStructure = preservePackageStructure;
 
 		this.outputFileForObfuscationMap = outputFileForObfuscationMap;
-
+		
 		packageNameRemapping = new HashMap<>();
 		classNameRemapping = new HashMap<>();
 		fieldNameRemapping = new HashMap<>();

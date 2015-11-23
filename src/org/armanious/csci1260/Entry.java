@@ -95,10 +95,6 @@ public class Entry {
 			printUsage();
 			isJar = false;
 		}
-
-		System.err.println("isJar = " + isJar);
-
-
 		/*for(ClassNode cn : classDatas){
 			cn.accept(new TraceClassVisitor(new PrintWriter(System.out)));
 			for(MethodNode mn : cn.methods){
