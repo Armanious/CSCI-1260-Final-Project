@@ -1,13 +1,18 @@
 package org.armanious.csci1260.obfuscation;
 
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.lang.reflect.Modifier;
 import java.util.Random;
 
 import org.armanious.csci1260.DataManager;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.FrameNode;
 import org.objectweb.asm.tree.IincInsnNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.InsnNode;
@@ -19,11 +24,20 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
+import org.objectweb.asm.util.ASMifier;
+import org.objectweb.asm.util.TraceClassVisitor;
 
 //TODO add FrameNode instructions to injected bytecode and change the projects output ClassWriter
 //so that it doesnt calculate Frames; and then youll be able to run the ExceptionBlockObfuscator
 //with no problems
 public class StringLiteralEncryption {
+	
+	public static void main(String...args) throws IOException{
+		ASMifier asmifier = new ASMifier();
+		ClassReader cr = new ClassReader(StringLiteralEncryption.class.getName());
+		ClassVisitor cv = new TraceClassVisitor(null, asmifier, new PrintWriter(System.out));
+		cr.accept(cv, 0);
+	}
 
 	public static String decipher(String s){
 		final char[] arr = s.toCharArray();
@@ -93,6 +107,7 @@ public class StringLiteralEncryption {
 			list.add(new VarInsnNode(ISTORE, 2)); //int i = 0
 			list.add(new JumpInsnNode(GOTO, label30));
 			list.add(label10);
+			//list.add(new FrameNode(Opcodes.F_APPEND, 2, new Object[]{"[C", Opcodes.INTEGER}, 0, null));
 			list.add(new VarInsnNode(ALOAD, 1));
 			list.add(new VarInsnNode(ILOAD, 2));
 			list.add(new InsnNode(DUP2)); //ALOAD_1, ILOAD_2 again; stack: arr, i, arr, i
@@ -121,6 +136,7 @@ public class StringLiteralEncryption {
 			list.add(new InsnNode(CASTORE));
 			list.add(new IincInsnNode(2, 1));
 			list.add(label30);
+			//list.add(new FrameNode(Opcodes.F_SAME, 0, null, 0, null));
 			list.add(new VarInsnNode(ILOAD, 2));
 			list.add(new VarInsnNode(ALOAD, 1));
 			list.add(new InsnNode(ARRAYLENGTH));
@@ -132,7 +148,7 @@ public class StringLiteralEncryption {
 			list.add(new InsnNode(ARETURN));
 			
 			mn.maxLocals = 3;
-			mn.maxStack = 0;
+			mn.maxStack = 5;
 			
 			mn.instructions = list;
 		}
