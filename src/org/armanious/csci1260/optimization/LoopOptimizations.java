@@ -368,7 +368,6 @@ public class LoopOptimizations {
 						int offsetOfLocalVariable = invariantRedefinitionLocations.indexOf(toInsertClone);
 						int indexOfLocalVariable = mi.mn.maxLocals + offsetOfLocalVariable;
 						insertBefore(mi.mn.instructions, toInsertClone.val2, toInsertClone.val1.getContiguousBlockSorted(), new VarInsnNode(DataManager.getStoreOpcode(toInsertClone.val1.getType()), indexOfLocalVariable));
-						System.out.println("local_" + indexOfLocalVariable + " = " + toInsertClone.val1);
 					}
 					numLoopInvariants += invariantRedefinitionLocations.size();
 					mi.mn.maxLocals += invariantRedefinitionLocations.size();
@@ -377,14 +376,6 @@ public class LoopOptimizations {
 			}
 
 			if(numLoopInvariants > startingNumLoopInvariants){
-				
-				Textifier t = new Textifier();
-				mi.mn.accept(new TraceMethodVisitor(t));
-				
-				System.out.println("Found and reduced " + (numLoopInvariants - startingNumLoopInvariants) + " loop invariants in " + dm.methodNodeToOwnerMap.get(mi.mn).name + "." + mi.mn.name + mi.mn.desc);
-
-				System.out.println(t.text);
-				
 				mi.recompute(); //recompute at the end of any modifications
 			}
 		}
@@ -428,9 +419,6 @@ public class LoopOptimizations {
 			//System.out.println(Textifier.OPCODES[ain.getOpcode()]);
 		}
 		il.add(storeInsn);
-		if(where.getPrevious() instanceof VarInsnNode && ((VarInsnNode)where.getPrevious()).var == storeInsn.var){
-			System.err.println("HERE");
-		}
 		list.insertBefore(where, il);
 	}
 	

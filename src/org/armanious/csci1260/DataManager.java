@@ -1412,7 +1412,7 @@ public class DataManager {
 	}
 
 	private static final Level DEFAULT_LOG_LEVEL = Level.FINE;
-	private static final String TO_DEBUG = "test/hi/Hello.fundamentalLoopTest(I)V";
+	private static final String TO_DEBUG = null;//"test/hi/Hello.fundamentalLoopTest(I)V";
 
 	private static final Logger log = Logger.getLogger("DataManager");
 	static {
