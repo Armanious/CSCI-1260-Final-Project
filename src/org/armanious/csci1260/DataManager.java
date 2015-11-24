@@ -47,6 +47,41 @@ import org.objectweb.asm.util.TraceMethodVisitor;
 
 public class DataManager {
 
+	//copied from RedundantComputationRemover
+	public static int getStoreOpcode(Type t){
+		if(t == Type.BOOLEAN_TYPE ||
+				t == Type.INT_TYPE ||
+				t == Type.BYTE_TYPE ||
+				t == Type.CHAR_TYPE ||
+				t == Type.SHORT_TYPE){
+			return Opcodes.ISTORE;
+		}else if(t == Type.DOUBLE_TYPE){
+			return Opcodes.DSTORE;
+		}else if(t == Type.FLOAT_TYPE){
+			return Opcodes.FSTORE;
+		}else if(t == Type.LONG_TYPE){
+			return Opcodes.LSTORE;
+		}
+		return Opcodes.ASTORE;
+	}
+
+	public static int getLoadOpcode(Type t){
+		if(t == Type.BOOLEAN_TYPE ||
+				t == Type.INT_TYPE ||
+				t == Type.BYTE_TYPE ||
+				t == Type.CHAR_TYPE ||
+				t == Type.SHORT_TYPE){
+			return Opcodes.ILOAD;
+		}else if(t == Type.DOUBLE_TYPE){
+			return Opcodes.DLOAD;
+		}else if(t == Type.FLOAT_TYPE){
+			return Opcodes.FLOAD;
+		}else if(t == Type.LONG_TYPE){
+			return Opcodes.LLOAD;
+		}
+		return Opcodes.ALOAD;
+	}
+
 	public static abstract class Temporary {
 
 		public static int numTemporaries = 0;
@@ -91,7 +126,7 @@ public class DataManager {
 			return declaration;
 		}
 
-		protected abstract void addRelevantInstructionsToList(ArrayList<AbstractInsnNode> list);
+		protected abstract void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list);
 
 		protected void addCriticalTemporariesToList(ArrayList<Temporary> list){
 
@@ -115,15 +150,15 @@ public class DataManager {
 			return t;
 		}
 
-		public final ArrayList<AbstractInsnNode> getContiguousBlock(){
+		public final ArrayList<AbstractInsnNode> getContiguousBlockSorted(){
 			final ArrayList<AbstractInsnNode> list = new ArrayList<>();
-			addRelevantInstructionsToList(list);
+			addRelevantInstructionsToListSorted(list);
 			if(list.contains(null)){
 				return null;
 			}
-			list.sort((a1, a2) -> a1.getIndex() - a2.getIndex());
+			//list.sort((a1, a2) -> a1.getIndex() - a2.getIndex());
 			int fingerIndex = 0;
-			for(AbstractInsnNode ain = list.get(0); ain != list.get(list.size() - 1).getNext(); ain = ain.getNext()){
+			for(AbstractInsnNode ain = list.get(0); ain != null && ain != list.get(list.size() - 1).getNext(); ain = ain.getNext()){
 				if(list.get(fingerIndex) != ain){
 					//somethings interupting the list; only special cases allowed:
 					switch(ain.getOpcode()){ //the one interrupting the list
@@ -254,14 +289,14 @@ public class DataManager {
 		}
 
 		@Override
-		protected void addRelevantInstructionsToList(ArrayList<AbstractInsnNode> list) {
-			list.add(getDeclaration());
-			if(getValue() != null){
-				getValue().addRelevantInstructionsToList(list);
-			}
+		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
 			if(getObjectRef() != null){
-				getObjectRef().addRelevantInstructionsToList(list);
+				getObjectRef().addRelevantInstructionsToListSorted(list);
 			}
+			if(getValue() != null){
+				getValue().addRelevantInstructionsToListSorted(list);
+			}
+			list.add(getDeclaration());
 		}
 
 		@Override
@@ -287,18 +322,6 @@ public class DataManager {
 
 	}
 
-	private static final String[] KNOWN_NO_SIDE_EFFECTS = {
-			"java/lang/Class.getMethod(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Method;",
-			"java/lang/Class.getDeclaredMethod(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Method;",
-			"java/lang/Class.getField(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Field;",
-			"java/lang/Class.getDeclaredField(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Field;",
-			"java/lang/Class.forName(Ljava/lang/String;)Ljava/lang/Class;",
-			"java/lang/Class.forName(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;",
-	};
-	static {
-		Arrays.sort(KNOWN_NO_SIDE_EFFECTS);
-	}
-
 	//NOT static because we need access to the enclosing DataManager class to determine side effects
 	public class MethodInvocationTemporary extends Temporary {
 
@@ -308,8 +331,8 @@ public class DataManager {
 		public final String desc;
 		final boolean isStatic;
 
-		private boolean calculatedSideEffects = false;
-		boolean hasSideEffects = true;
+		private boolean calculatedSideEffects;
+		private boolean hasSideEffects;
 
 		public MethodInvocationTemporary(boolean isStatic, Temporary[] args, String owner, String name, String desc, Type returnType){
 			super(null, returnType);
@@ -343,22 +366,15 @@ public class DataManager {
 					calculatedSideEffects = true;
 					return hasSideEffects;
 				}
-				MethodInformation mi = DataManager.this.methodInformations.get(cn.getMethodNode(name, desc));
+				MethodNode mn = cn.getMethodNode(name, desc);
+				if(mn == null){
+					return true;
+				}
+				MethodInformation mi = DataManager.this.methodInformations.get(mn);
 				if(mi == null){
-					return true; //do not set calculated side effects = true
+					return true;
 				}
-				hasSideEffects = mi.fieldsWritten.size() > 0;
-				if(!hasSideEffects){
-					MethodCallGraphNode mcgn = DataManager.this.methodCallGraph.get(mi.mn);
-					//TODO FIXME
-					for(MethodCallGraphNode calls : mcgn.successors){
-						if(calls.mn == null){
-							hasSideEffects = true; //fix for library calls
-						}else{
-							hasSideEffects = true;//DataManager.this.methodInformations.get(calls.mn).hasSideEffects() ???
-						}
-					}
-				}
+				hasSideEffects = mi.hasSideEffects();
 				calculatedSideEffects = true;
 			}
 			return hasSideEffects;
@@ -399,11 +415,11 @@ public class DataManager {
 		}
 
 		@Override
-		protected void addRelevantInstructionsToList(ArrayList<AbstractInsnNode> list) {
-			list.add(getDeclaration());
-			for(Temporary t : args){
-				t.addRelevantInstructionsToList(list);
+		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
+			for(int i = args.length - 1; i >= 0; i--){
+				args[i].addRelevantInstructionsToListSorted(list);
 			}
+			list.add(getDeclaration());
 		}
 
 		@Override
@@ -489,7 +505,7 @@ public class DataManager {
 		}
 
 		@Override
-		protected void addRelevantInstructionsToList(ArrayList<AbstractInsnNode> list) {
+		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
 			list.add(getDeclaration());
 		}
 
@@ -528,7 +544,7 @@ public class DataManager {
 		}
 
 		@Override
-		protected void addRelevantInstructionsToList(ArrayList<AbstractInsnNode> list) {
+		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
 			list.add(getDeclaration());
 		}
 
@@ -587,10 +603,10 @@ public class DataManager {
 		}
 
 		@Override
-		protected void addRelevantInstructionsToList(ArrayList<AbstractInsnNode> list) {
+		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
+			arrayRef.addRelevantInstructionsToListSorted(list);
+			index.addRelevantInstructionsToListSorted(list);
 			list.add(getDeclaration());
-			arrayRef.addRelevantInstructionsToList(list);
-			index.addRelevantInstructionsToList(list);
 		}
 
 		@Override
@@ -691,10 +707,10 @@ public class DataManager {
 		}
 
 		@Override
-		protected void addRelevantInstructionsToList(ArrayList<AbstractInsnNode> list) {
+		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
+			lhs.addRelevantInstructionsToListSorted(list);
+			rhs.addRelevantInstructionsToListSorted(list);
 			list.add(getDeclaration());
-			lhs.addRelevantInstructionsToList(list);
-			rhs.addRelevantInstructionsToList(list);
 		}
 
 		@Override
@@ -740,9 +756,9 @@ public class DataManager {
 		}
 
 		@Override
-		protected void addRelevantInstructionsToList(ArrayList<AbstractInsnNode> list) {
+		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
+			tmp.addRelevantInstructionsToListSorted(list);
 			list.add(getDeclaration());
-			tmp.addRelevantInstructionsToList(list);
 		}
 
 		@Override
@@ -816,9 +832,9 @@ public class DataManager {
 		}
 
 		@Override
-		protected void addRelevantInstructionsToList(ArrayList<AbstractInsnNode> list) {
+		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
+			tmp.addRelevantInstructionsToListSorted(list);
 			list.add(getDeclaration());
-			tmp.addRelevantInstructionsToList(list);
 		}
 
 		@Override
@@ -866,10 +882,10 @@ public class DataManager {
 		}
 
 		@Override
-		protected void addRelevantInstructionsToList(ArrayList<AbstractInsnNode> list) {
+		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
+			lhs.addRelevantInstructionsToListSorted(list);
+			rhs.addRelevantInstructionsToListSorted(list);
 			list.add(getDeclaration());
-			rhs.addRelevantInstructionsToList(list);
-			lhs.addRelevantInstructionsToList(list);
 		}
 
 		@Override
@@ -926,7 +942,7 @@ public class DataManager {
 		}
 
 		@Override
-		protected void addRelevantInstructionsToList(ArrayList<AbstractInsnNode> list) {
+		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
 			list.add(getDeclaration());
 		}
 
@@ -983,11 +999,11 @@ public class DataManager {
 		}
 
 		@Override
-		protected void addRelevantInstructionsToList(ArrayList<AbstractInsnNode> list) {
-			list.add(getDeclaration());
-			for(Temporary t : dimensionCounts){
-				t.addRelevantInstructionsToList(list);
+		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
+			for(int i = dimensionCounts.length - 1; i >= 0; i--){
+				dimensionCounts[i].addRelevantInstructionsToListSorted(list);
 			}
+			list.add(getDeclaration());
 		}
 
 		@Override
@@ -1033,9 +1049,9 @@ public class DataManager {
 		}
 
 		@Override
-		protected void addRelevantInstructionsToList(ArrayList<AbstractInsnNode> list) {
+		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
+			arrayRef.addRelevantInstructionsToListSorted(list);
 			list.add(getDeclaration());
-			arrayRef.addRelevantInstructionsToList(list);
 		}
 
 		@Override
@@ -1080,9 +1096,9 @@ public class DataManager {
 		}
 
 		@Override
-		protected void addRelevantInstructionsToList(ArrayList<AbstractInsnNode> list) {
+		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
+			objectRef.addRelevantInstructionsToListSorted(list);
 			list.add(getDeclaration());
-			objectRef.addRelevantInstructionsToList(list);
 		}
 
 		@Override
@@ -1145,7 +1161,7 @@ public class DataManager {
 		public final Temporary[] mergedTemporaries;
 		public final int index;
 		public final BasicBlock initialBlock;
-		
+
 		public PhiTemporary(Temporary[] toMerge, int index, Type knownType, BasicBlock block) {
 			super(null, knownType);
 			this.mergedTemporaries = toMerge;
@@ -1167,7 +1183,9 @@ public class DataManager {
 
 		@Override
 		public boolean equals(Object o) {
-			return this == o;
+			if(o == this) return true;
+			if(!(o instanceof PhiTemporary)) return false;
+			return index == ((PhiTemporary)o).index && Arrays.equals(mergedTemporaries, ((PhiTemporary)o).mergedTemporaries);
 		}
 
 		@Override
@@ -1176,7 +1194,7 @@ public class DataManager {
 		}
 
 		@Override
-		protected void addRelevantInstructionsToList(ArrayList<AbstractInsnNode> list) {
+		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
 			list.add(getDeclaration());
 			/*for(Temporary t : mergedTemporaries){
 				if(t != null){
@@ -1394,7 +1412,7 @@ public class DataManager {
 	}
 
 	private static final Level DEFAULT_LOG_LEVEL = Level.FINE;
-	private static final String TO_DEBUG = null;//"org/objectweb/asm/tree/InsnList.contains(Lorg/objectweb/asm/tree/AbstractInsnNode;)Z";
+	private static final String TO_DEBUG = "test/hi/Hello.fundamentalLoopTest(I)V";
 
 	private static final Logger log = Logger.getLogger("DataManager");
 	static {
@@ -1448,8 +1466,8 @@ public class DataManager {
 
 			while(!toAddStack.isEmpty()){
 				BasicBlock toAdd = toAddStack.pop();
-				blocksInLoop.add(toAdd);
 				if(toAdd != toIgnoreAfter){
+					blocksInLoop.add(toAdd);
 					for(BlockEdge predecessor : toAdd.predecessors){
 						if(!blocksInLoop.contains(predecessor.b1)){
 							toAddStack.push(predecessor.b1);
@@ -1464,6 +1482,32 @@ public class DataManager {
 			return blocksInLoop.contains(b);
 		}
 
+		@Override
+		public String toString() {
+			return "LE_" + entry;
+		}
+
+	}
+
+
+
+	//TODO collections, math
+	//for the purpose of this project, it is sufficient to predetermine whether or not
+	//only a limited number of Java library methods are side-effect free
+	private static final String[] KNOWN_NO_SIDE_EFFECTS = {
+			"java/lang/Class.getMethod(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Method;",
+			"java/lang/Class.getDeclaredMethod(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Method;",
+			"java/lang/Class.getField(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Field;",
+			"java/lang/Class.getDeclaredField(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Field;",
+			"java/lang/Class.forName(Ljava/lang/String;)Ljava/lang/Class;",
+			"java/lang/Class.forName(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;",
+			"java/util/ArrayList.get(I)Ljava/lang/Object;",
+			"java/util/ArrayList.size()I",
+			"java/lang/Math.max(II)I",
+			"java/lang/Math.min(II)I",
+	};
+	static {
+		Arrays.sort(KNOWN_NO_SIDE_EFFECTS);
 	}
 
 	public class MethodInformation implements Opcodes {
@@ -1483,13 +1527,47 @@ public class DataManager {
 		public final HashMap<BasicBlock, Set<Temporary>> temporariesRead = new HashMap<>();
 		//public final HashMap<BasicBlock, Set<Temporary>> temporariesWritten = new HashMap<>();
 		public final HashMap<AbstractInsnNode, FieldTemporary> fieldsWritten = new HashMap<>();
-		
+
 		//public final HashMap<AbstractInsnNode, Tuple<Temporary[], Temporary>> operandsResultPerInsn = new HashMap<>();
 		public final HashMap<AbstractInsnNode, Tuple<JavaStack, Temporary[]>> statePerInsn = new HashMap<>();
 
 		public MethodInformation(MethodNode mn){
 			this.mn = mn;
 			recompute();
+		}
+
+		private boolean callingHasSideEffects;
+		public boolean hasSideEffects() {
+			if(fieldsWritten.size() > 0){
+				return true;
+			}
+			Stack<MethodCallGraphNode> searching = new Stack<>();
+			searching.add(DataManager.this.methodCallGraph.get(mn));
+			while(!searching.isEmpty()){
+				MethodCallGraphNode mcgn = searching.pop();
+				if(mcgn.mn != null){
+					MethodInformation mi = DataManager.this.methodInformations.get(mcgn.mn);
+					if(mi.callingHasSideEffects){
+						mi.callingHasSideEffects = false;
+						return true; //avoid infinite recursion...assume side effects
+					}else{
+						mi.callingHasSideEffects = true;
+						boolean miHasSideEffects = mi.hasSideEffects();
+						mi.callingHasSideEffects = false;
+						if(miHasSideEffects){
+							return true;
+						}
+					}
+				}else{
+					final ForeignExecutableCallGraphNode fecgn = (ForeignExecutableCallGraphNode) mcgn;
+					final Type type = fecgn.e instanceof Method ? Type.getType((Method)fecgn.e) : Type.getType((Constructor<?>)fecgn.e);
+					final String s = fecgn.e.getDeclaringClass().getName().replace('.', '/') + "." + fecgn.e.getName() + type.getDescriptor();
+					if(Arrays.binarySearch(KNOWN_NO_SIDE_EFFECTS, s) < 0){
+						return true;
+					}
+				}
+			}
+			return false;
 		}
 
 		private void printGraph(){
@@ -2308,7 +2386,7 @@ public class DataManager {
 					while(insnsOfBlock.hasNext()){
 						executingInstruction = insnsOfBlock.next();
 
-						log.finest(instructionsInText[executingInstruction.getIndex()].toString());
+						log.finest(instructionsInText[executingInstruction.getIndex() + 1].toString());
 						if(executingInstruction.getType() == AbstractInsnNode.FRAME ||
 								executingInstruction.getType() == AbstractInsnNode.LABEL ||
 								executingInstruction.getType() == AbstractInsnNode.LINE){
@@ -2939,6 +3017,7 @@ public class DataManager {
 					errorMessage.append("\tExecuting block stack at start: " + executingBlock.stackAtStart + "\n\tCurrently\t: " + stack).append('\n');
 					errorMessage.append("\tLocals: " + locals).append('\n');
 					log.severe(errorMessage.toString());
+					System.exit(0);//TODO FIXME Remove me!!!
 					return;
 				}
 

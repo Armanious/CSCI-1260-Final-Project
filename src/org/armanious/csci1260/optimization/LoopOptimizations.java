@@ -15,11 +15,14 @@ import org.armanious.csci1260.DataManager.MethodInformation;
 import org.armanious.csci1260.DataManager.MethodInvocationTemporary;
 import org.armanious.csci1260.DataManager.PhiTemporary;
 import org.armanious.csci1260.DataManager.Temporary;
+import org.armanious.csci1260.Tuple;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.IincInsnNode;
+import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.VarInsnNode;
 import org.objectweb.asm.util.Textifier;
+import org.objectweb.asm.util.TraceMethodVisitor;
 
 public class LoopOptimizations {
 
@@ -74,12 +77,15 @@ public class LoopOptimizations {
 		}
 		return true;
 	}
-	
+
 	private boolean isInvariant(MethodInformation mi, HashMap<Integer, LoopEntry> varianceMap, LoopEntry currentEntry, Temporary t){
 		if(t instanceof PhiTemporary){
 			t = resolvePrematurePhiTemporary((PhiTemporary)t);
 		}
-		if(t instanceof MethodInvocationTemporary) return false; //assume all methods have side effects for now
+		if(t instanceof MethodInvocationTemporary && ((MethodInvocationTemporary)t).hasSideEffects()){
+			return false; //assume all methods have side effects for now
+		}
+		if(t.getContiguousBlockSorted() == null) return false;
 		if(t.getDeclaration() != null){
 			if(t.getDeclaration().getOpcode() >= Opcodes.IASTORE && t.getDeclaration().getOpcode() <= Opcodes.SASTORE){
 				return false;
@@ -98,7 +104,7 @@ public class LoopOptimizations {
 		}
 		return true;
 	}
-	
+
 	private void addToVariantLocals(HashMap<Integer, LoopEntry> map, int index, LoopEntry cur){
 		LoopEntry prev = map.get(index);
 		if(prev == null){
@@ -107,19 +113,25 @@ public class LoopOptimizations {
 			//prev is some parent of cur
 			map.put(index, cur);
 		}
+
 	}
 
 	public void optimize(){
+		int numLoopInvariants = 0;
 		for(MethodInformation mi : dm.methodInformations.values()){
-			//if(!mi.mn.name.equals("contains")) continue;
+			//if(!mi.mn.name.equals("fundamentalLoopTest")) continue;
+			//System.out.println("\n" + mi.mn.name);
+			int startingNumLoopInvariants = numLoopInvariants;
 
 			HashMap<BasicBlock, LoopEntry> loopRoots = mi.loopRoots;
 
-			HashSet<BasicBlock> searched = new HashSet<>();
-			HashMap<Integer, LoopEntry> variantLocals = new HashMap<>();
-			HashMap<LoopEntry, ArrayList<Temporary>> invariantTemporaries = new HashMap<>();
 
 			for(BasicBlock loopRootEntry : loopRoots.keySet()){
+
+				HashMap<LoopEntry, ArrayList<Temporary>> invariantTemporaries = new HashMap<>();
+				HashMap<Integer, LoopEntry> variantLocals = new HashMap<>();
+				HashSet<BasicBlock> searched = new HashSet<>();
+				
 				LoopEntry loopRoot = loopRoots.get(loopRootEntry);
 				Stack<LoopEntry> toAnalyze = new Stack<>();
 				Stack<LoopEntry> toSearch = new Stack<>();
@@ -186,7 +198,6 @@ public class LoopOptimizations {
 										}
 									}
 								}
-								//TODO
 								break;
 							}
 
@@ -205,8 +216,13 @@ public class LoopOptimizations {
 					}
 				}
 
+
+				//System.out.println(mi.mn.name + " variantLocals: " + variantLocals);
+
 				searched.clear();
 				toAnalyze = toAnalyzeClone;
+
+				//ArrayList<Tuple<Temporary, LoopEntry>> whereToRelocateInvariants = new ArrayList<>();
 
 				while(!toAnalyze.isEmpty()){
 					LoopEntry entry = toAnalyze.pop();
@@ -220,21 +236,40 @@ public class LoopOptimizations {
 							if(t == null) continue;
 							//System.out.println("Instruction " + ain.getIndex() + ": " + Textifier.OPCODES[ain.getOpcode()] + " -> " + t);
 							if(isInvariant(mi, variantLocals, entry, t)){
-								ArrayList<Temporary> set = invariantTemporaries.get(entry);
-								if(set == null){
-									set = new ArrayList<>();
-									invariantTemporaries.put(entry, set);
+								ArrayList<Temporary> list = invariantTemporaries.get(entry);
+								if(list == null){
+									list = new ArrayList<>();
+									invariantTemporaries.put(entry, list);
 								}
-								//if(!set.contains(t)){
-								set.add(t);
-								//}
+								list.add(t);
+
+								/*boolean shouldSet = true;
+								Tuple<Temporary, LoopEntry> toReplace = null;
+								for(Tuple<Temporary, LoopEntry> v : whereToRelocateInvariants){
+									if(v.val1.equals(t)){
+										if(entry.contains(v.val2.entry)){
+											toReplace = v;
+											shouldSet = true;
+										}else{
+											shouldSet = false;
+										}
+										break;
+									}
+								}
+								if(shouldSet){
+									if(toReplace != null){
+										whereToRelocateInvariants.remove(toReplace);
+									}
+									whereToRelocateInvariants.add(new Tuple<>(t, entry));
+								}*/
+
 							}
 
 						}
 					}
 				}
 
-				if(invariantTemporaries.size() > 0){
+				/*if(invariantTemporaries.size() > 0){
 					System.out.println(dm.methodNodeToOwnerMap.get(mi.mn).name + "." + mi.mn.name + mi.mn.desc + ":");
 					System.out.println("variantLocals = ");
 					for(int key : variantLocals.keySet()){
@@ -245,59 +280,181 @@ public class LoopOptimizations {
 						System.out.println("\tEntry to move to = " + key.entry.toString());
 						for(Temporary invariant : invariantTemporaries.get(key)){
 							System.out.println("\t\tInstruction " + invariant.getDeclaration().getIndex() + " (" + Textifier.OPCODES[invariant.getDeclaration().getOpcode()] + "): " + invariant);
+							ArrayList<AbstractInsnNode> block = invariant.getContiguousBlock();
+							System.out.println("\t\t\t" + block.get(0).getIndex() + " - " + block.get(block.size() - 1).getIndex());
 						}
 						//+ "; t = " + invariantTemporaries.get(key) + "; at instruction " + invariantTemporaries.get(key));
 					}
-					
+					System.out.println(whereToRelocateInvariants);
+
 					System.out.println();
+				}*/
+
+				if(invariantTemporaries.size() > 0){
+
+					HashSet<Tuple<Temporary, LoopEntry>> insertionChecker = new HashSet<>();
+
+					ArrayList<Tuple<Temporary, BasicBlock>> invariantRedefinitionLocations = new ArrayList<>();
+
+					for(LoopEntry loop : invariantTemporaries.keySet()){
+						ArrayList<Temporary> invariantInThisLoop = invariantTemporaries.get(loop);
+
+						for(int i = 0; i < invariantInThisLoop.size(); i++){
+							Temporary invariant = invariantInThisLoop.get(i);
+
+							int indexOfLocalVariable = -1;
+
+							for(int j = 0; j < invariantRedefinitionLocations.size(); j++){
+								if(invariant.equals(invariantRedefinitionLocations.get(j).val1)){
+									if(loop.contains(invariantRedefinitionLocations.get(j).val2)){
+										//if this loop is some parent of the loop currently defining the invariant
+										//move the invariant as far up the loop chain as possible
+										invariantRedefinitionLocations.set(j, new Tuple<>(invariant, loop.entry));
+									}
+									indexOfLocalVariable = mi.mn.maxLocals + j;
+									break;
+								}
+							}
+							if(indexOfLocalVariable == -1){
+								//is not yet defined
+								indexOfLocalVariable = mi.mn.maxLocals + invariantRedefinitionLocations.size();
+								invariantRedefinitionLocations.add(new Tuple<>(invariant, loop.entry));
+							}
+
+							replace(mi.mn.instructions, invariant.getContiguousBlockSorted(), new VarInsnNode(DataManager.getLoadOpcode(invariant.getType()), indexOfLocalVariable));
+
+						}
+						
+						//make sure we have the temporaries that were first defined still defined first, even if they are invariant
+						
+
+						/*for(Temporary invariant : invariantTemporaries.get(loop)){
+							ArrayList<AbstractInsnNode> block = invariant.getContiguousBlock();
+
+
+
+
+							Tuple<Temporary, LoopEntry> tuple = null;
+							int localVarOffset = -1;
+							for(int localVarOffsetPossibility = 0; localVarOffsetPossibility < whereToRelocateInvariants.size(); localVarOffsetPossibility++){
+								Tuple<Temporary, LoopEntry> tle = whereToRelocateInvariants.get(localVarOffsetPossibility);
+								if(tle.val1.equals(invariant)){
+									tuple = tle;
+									localVarOffset = localVarOffsetPossibility;
+									break;
+								}
+							}
+							if(localVarOffset == -1){
+								System.err.println("Invariant with null parent");
+								continue;
+							}
+
+							int indexOfLocalVariable = mi.mn.maxLocals + localVarOffset;
+
+							if(insertionChecker.add(tuple)){
+								BasicBlock entry = tuple.val2.entry;
+								AbstractInsnNode lastWhichIsGoto = entry.getLastInsnInBlock();
+								System.err.println("Inserting " + tuple.val1 + " at the end of " + entry);
+								insertBefore(mi.mn.instructions, lastWhichIsGoto, block, new VarInsnNode(DataManager.getStoreOpcode(invariant.getType()), indexOfLocalVariable),
+										new VarInsnNode(DataManager.getLoadOpcode(invariant.getType()), indexOfLocalVariable));
+
+							}else{
+								replace(mi.mn.instructions, block, new VarInsnNode(DataManager.getLoadOpcode(invariant.getType()), indexOfLocalVariable));
+							}
+						//}*/
+					};
+					
+					for(Tuple<Temporary, BasicBlock> toInsertClone : invariantRedefinitionLocations){
+						int offsetOfLocalVariable = invariantRedefinitionLocations.indexOf(toInsertClone);
+						int indexOfLocalVariable = mi.mn.maxLocals + offsetOfLocalVariable;
+						insertBefore(mi.mn.instructions, toInsertClone.val2, toInsertClone.val1.getContiguousBlockSorted(), new VarInsnNode(DataManager.getStoreOpcode(toInsertClone.val1.getType()), indexOfLocalVariable));
+						System.out.println("local_" + indexOfLocalVariable + " = " + toInsertClone.val1);
+					}
+					numLoopInvariants += invariantRedefinitionLocations.size();
+					mi.mn.maxLocals += invariantRedefinitionLocations.size();
 				}
 
 			}
 
-			/*
-				for(BasicBlock loopEntry : loops.keySet()){
-					LoopEntry loop = loops.get(loopEntry);
+			if(numLoopInvariants > startingNumLoopInvariants){
+				
+				Textifier t = new Textifier();
+				mi.mn.accept(new TraceMethodVisitor(t));
+				
+				System.out.println("Found and reduced " + (numLoopInvariants - startingNumLoopInvariants) + " loop invariants in " + dm.methodNodeToOwnerMap.get(mi.mn).name + "." + mi.mn.name + mi.mn.desc);
 
-					for(BasicBlock block : loop.blocksInLoop){
-						Iterator<AbstractInsnNode> blockIter = block.instructionIteratorForward();
-						while(blockIter.hasNext()){
-							AbstractInsnNode insn = blockIter.next();
-							Temporary t = mi.temporaries.get(insn);
-							if(t == null || t instanceof ConstantTemporary) continue;
-							ArrayList<Temporary> criticalTemporaries = t.getCriticalTemporaries();
-							if(criticalTemporaries == null || criticalTemporaries.size() == 0) continue;
-							boolean validForAnalysis = true;
-							for(Temporary critTemp : criticalTemporaries){
-								if(critTemp.getDeclaration() == null){
-									System.out.println(t + " is not valid for analysis: " + critTemp);
-									validForAnalysis = false;
-									break;
-								}
-								switch(critTemp.getDeclaration().getOpcode()){
-								case Opcodes.ILOAD:
-								case Opcodes.ALOAD:
-								case Opcodes.LLOAD:
-								case Opcodes.DLOAD:
-								case Opcodes.FLOAD:
-									continue;
-								default:
-									validForAnalysis = false;
-									break;
-								}
-								if(!validForAnalysis){
-									System.out.println(t + " is not valid for analysis: " + critTemp);
-									break;
-								}
-							}
-							if(validForAnalysis){
-								System.err.println(t + " is valid for analysis.");
-							}
-						}
-					}
-				}*/
+				System.out.println(t.text);
+				
+				mi.recompute(); //recompute at the end of any modifications
+			}
 		}
+
+		System.out.println("Found and reduced " + numLoopInvariants + " loop invariants.");
+
 	}
 
+	private void insertBefore(InsnList list, BasicBlock endOfWhichBlock, ArrayList<AbstractInsnNode> block, VarInsnNode storeInsn) {
+		AbstractInsnNode where = endOfWhichBlock.getLastInsnInBlock();
+		switch(where.getOpcode()){
+		case Opcodes.IFNONNULL:
+		case Opcodes.IFNULL:
+		case Opcodes.IFEQ:
+		case Opcodes.IFNE:
+		case Opcodes.IFGE:
+		case Opcodes.IFGT:
+		case Opcodes.IFLE:
+		case Opcodes.IFLT:
+			where = where.getPrevious();
+			break;
+		case Opcodes.IF_ICMPEQ:
+		case Opcodes.IF_ICMPNE:
+		case Opcodes.IF_ICMPLT:
+		case Opcodes.IF_ICMPGE:
+		case Opcodes.IF_ICMPGT:
+		case Opcodes.IF_ICMPLE:
+		case Opcodes.IF_ACMPEQ:
+		case Opcodes.IF_ACMPNE:
+			where = where.getPrevious().getPrevious();
+			break;
+		case Opcodes.GOTO:
+			break;
+		}
+		//list.get(0);
+		//System.err.println("Inserting " + block.get(0).getIndex() + " - " + block.get(block.size() - 1).getIndex() + " + " + Textifier.OPCODES[storeInsn.getOpcode()] + " " + storeInsn.var + " before Instruction " + where.getIndex());
+		InsnList il = new InsnList();
+		for(AbstractInsnNode ain : block){
+			//list.remove(ain); they have already been removed
+			il.add(ain);
+			//System.out.println(Textifier.OPCODES[ain.getOpcode()]);
+		}
+		il.add(storeInsn);
+		if(where.getPrevious() instanceof VarInsnNode && ((VarInsnNode)where.getPrevious()).var == storeInsn.var){
+			System.err.println("HERE");
+		}
+		list.insertBefore(where, il);
+	}
+	
+	private void insertBeforeLegacy(InsnList list, AbstractInsnNode where, ArrayList<AbstractInsnNode> block, VarInsnNode storeInsn, VarInsnNode loadInsn) {
+		list.get(0);
+		System.err.println("Inserting " + block.get(0).getIndex() + " - " + block.get(block.size() - 1).getIndex() + " + " + Textifier.OPCODES[storeInsn.getOpcode()] + " " + storeInsn.var + " before Instruction " + where.getIndex());
+		list.insertBefore(block.get(0), loadInsn);
+		InsnList il = new InsnList();
+		for(AbstractInsnNode ain : block){
+			list.remove(ain);
+			il.add(ain);
+		}
+		il.add(storeInsn);
+		list.insertBefore(where, il);
+	}
+
+	private void replace(InsnList list, ArrayList<AbstractInsnNode> block, VarInsnNode varInsnNode) {
+		//list.get(0);
+		//System.err.println("Replacing " + block.get(0).getIndex() + " - " + block.get(block.size() - 1).getIndex() + " with " + Textifier.OPCODES[varInsnNode.getOpcode()] + " " + varInsnNode.var);
+		list.insertBefore(block.get(0), varInsnNode);
+		for(AbstractInsnNode ain : block){
+			list.remove(ain);
+		}
+	}
 
 
 }

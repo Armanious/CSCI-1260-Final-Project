@@ -17,7 +17,6 @@ import org.armanious.csci1260.DataManager.Temporary;
 import org.armanious.csci1260.JavaStack;
 import org.armanious.csci1260.Tuple;
 import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.InsnNode;
@@ -43,7 +42,7 @@ public class StackManipulatorBeta implements Opcodes {
 			final Comparator<ArrayList<AbstractInsnNode>> descendingComparator = (A,B)->(B == null ? -1 : B.size()) - (A == null ? -1 : A.size());
 			for(int i = 0; i < tmps.length; i++){
 				final Temporary tmp = tmps[i];
-				final ArrayList<AbstractInsnNode> block = tmp.getContiguousBlock();
+				final ArrayList<AbstractInsnNode> block = tmp.getContiguousBlockSorted();
 				if(block == null) continue;
 
 				int index = Arrays.binarySearch(blocks, block, descendingComparator);
@@ -121,7 +120,7 @@ public class StackManipulatorBeta implements Opcodes {
 			Collection<Temporary> tmps = mi.temporaries.values();
 			TreeMap<ArrayList<AbstractInsnNode>, Temporary> goodTargets = new TreeMap<>((a1,a2)->a1.size()-a2.size());
 			for(Temporary tmp : tmps){
-				ArrayList<AbstractInsnNode> block = tmp.getContiguousBlock();
+				ArrayList<AbstractInsnNode> block = tmp.getContiguousBlockSorted();
 				if(block != null && block.size() >= 3){
 					goodTargets.put(block, tmp);
 				}
@@ -134,7 +133,7 @@ public class StackManipulatorBeta implements Opcodes {
 			Entry<ArrayList<AbstractInsnNode>, Temporary>[] entries = (Entry<ArrayList<AbstractInsnNode>, Temporary>[]) goodTargets.entrySet().toArray(new Entry[goodTargets.size()]);
 
 			for(int i = 0; i < entries.length; i++){
-				ArrayList<AbstractInsnNode> list = entries[i].getValue().getContiguousBlock();
+				ArrayList<AbstractInsnNode> list = entries[i].getValue().getContiguousBlockSorted();
 				if(!list.equals(entries[i].getKey())){
 					System.err.println("This is the source of error");
 				}
@@ -401,41 +400,6 @@ public class StackManipulatorBeta implements Opcodes {
 		return max;
 	}
 
-	//copied from RedundantComputationRemover
-	private int getStoreOpcode(Type t){
-		if(t == Type.BOOLEAN_TYPE ||
-				t == Type.INT_TYPE ||
-				t == Type.BYTE_TYPE ||
-				t == Type.CHAR_TYPE ||
-				t == Type.SHORT_TYPE){
-			return Opcodes.ISTORE;
-		}else if(t == Type.DOUBLE_TYPE){
-			return Opcodes.DSTORE;
-		}else if(t == Type.FLOAT_TYPE){
-			return Opcodes.FSTORE;
-		}else if(t == Type.LONG_TYPE){
-			return Opcodes.LSTORE;
-		}
-		return Opcodes.ASTORE;
-	}
-
-	private int getLoadOpcode(Type t){
-		if(t == Type.BOOLEAN_TYPE ||
-				t == Type.INT_TYPE ||
-				t == Type.BYTE_TYPE ||
-				t == Type.CHAR_TYPE ||
-				t == Type.SHORT_TYPE){
-			return Opcodes.ILOAD;
-		}else if(t == Type.DOUBLE_TYPE){
-			return Opcodes.DLOAD;
-		}else if(t == Type.FLOAT_TYPE){
-			return Opcodes.FLOAD;
-		}else if(t == Type.LONG_TYPE){
-			return Opcodes.LLOAD;
-		}
-		return Opcodes.ALOAD;
-	}
-
 	private static void swap(List<AbstractInsnNode> L1, List<AbstractInsnNode> L2){
 		final AbstractInsnNode BL1 = L1.get(0).getPrevious();
 		final AbstractInsnNode AL1 = L1.get(L1.size() - 1).getNext();
@@ -489,7 +453,7 @@ public class StackManipulatorBeta implements Opcodes {
 		ListIterator<Integer> iter = possibilities.listIterator();
 		while(iter.hasNext()){
 			int next = iter.next();
-			if(criticalTemporaries.get(next).getContiguousBlock() == null){
+			if(criticalTemporaries.get(next).getContiguousBlockSorted() == null){
 				iter.remove();
 			}
 		}
@@ -499,7 +463,7 @@ public class StackManipulatorBeta implements Opcodes {
 		}
 		int firstIndex = possibilities.get(r.nextInt(possibilities.size()));
 		Temporary first = criticalTemporaries.get(firstIndex);
-		ArrayList<AbstractInsnNode> F = first.getContiguousBlock();
+		ArrayList<AbstractInsnNode> F = first.getContiguousBlockSorted();
 		
 		
 		int secondIndex; //index of second operand to swap
@@ -523,7 +487,7 @@ public class StackManipulatorBeta implements Opcodes {
 				iter.remove();
 				continue;
 			}
-			if(criticalTemporaries.get(firstIndex + possibility).getContiguousBlock() == null){
+			if(criticalTemporaries.get(firstIndex + possibility).getContiguousBlockSorted() == null){
 				iter.remove();
 				continue;
 			}
@@ -551,7 +515,7 @@ public class StackManipulatorBeta implements Opcodes {
 		}
 		secondIndex = firstIndex + possibilities.get(r.nextInt(possibilities.size()));
 		second = criticalTemporaries.get(secondIndex);
-		S = second.getContiguousBlock();
+		S = second.getContiguousBlockSorted();
 		sizeBetweenInclusive = sizeBetweenInclusive(criticalTemporaries, firstIndex, secondIndex);
 
 		if(firstIndex > secondIndex){
@@ -577,9 +541,9 @@ public class StackManipulatorBeta implements Opcodes {
 				//1 MID, size 2
 				final InsnList toAdd = new InsnList();
 				add(toAdd, DUP_X2, POP, DUP2_X2, POP2, SWAP);
-				toAdd.add(new VarInsnNode(getStoreOpcode(criticalTemporaries.get(firstIndex + 1).getType()), mi.mn.maxLocals));
+				toAdd.add(new VarInsnNode(DataManager.getStoreOpcode(criticalTemporaries.get(firstIndex + 1).getType()), mi.mn.maxLocals));
 				add(toAdd, DUP_X2, POP);
-				toAdd.add(new VarInsnNode(getLoadOpcode(criticalTemporaries.get(firstIndex + 1).getType()), mi.mn.maxLocals));
+				toAdd.add(new VarInsnNode(DataManager.getLoadOpcode(criticalTemporaries.get(firstIndex + 1).getType()), mi.mn.maxLocals));
 				mi.mn.maxLocals++;
 				mi.mn.maxStack += 2; //precomputed
 				mi.mn.instructions.insert(F.get(F.size() - 1), toAdd);
