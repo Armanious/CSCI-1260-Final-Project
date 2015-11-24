@@ -1,36 +1,37 @@
 package org.armanious.csci1260.optimization;
 
 import java.lang.reflect.Array;
-import java.util.ArrayList;
 import java.util.HashMap;
 
 import org.armanious.csci1260.DataManager;
+import org.armanious.csci1260.DataManager.ArrayInstanceTemporary;
+import org.armanious.csci1260.DataManager.ArrayLengthOperator;
 import org.armanious.csci1260.DataManager.ArrayReferenceTemporary;
 import org.armanious.csci1260.DataManager.BinaryOperatorTemporary;
 import org.armanious.csci1260.DataManager.CastOperatorTemporary;
+import org.armanious.csci1260.DataManager.CompareOperatorTemporary;
 import org.armanious.csci1260.DataManager.ConstantTemporary;
 import org.armanious.csci1260.DataManager.FieldTemporary;
+import org.armanious.csci1260.DataManager.InstanceofOperatorTemporary;
 import org.armanious.csci1260.DataManager.InvokeSpecialTemporary;
 import org.armanious.csci1260.DataManager.MethodInformation;
 import org.armanious.csci1260.DataManager.MethodInvocationTemporary;
 import org.armanious.csci1260.DataManager.NegateOperatorTemporary;
+import org.armanious.csci1260.DataManager.ObjectInstanceTemporary;
 import org.armanious.csci1260.DataManager.ParameterTemporary;
+import org.armanious.csci1260.DataManager.PhiTemporary;
 import org.armanious.csci1260.DataManager.Temporary;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
-import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
-import org.objectweb.asm.tree.InsnList;
-import org.objectweb.asm.tree.InsnNode;
-import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
 public class ConstantFolder {
-	
+
 	private static interface Resolver<T extends Temporary> {
 		Object resolve(T constantTemporary);
 	}
-	
+
 	private static final HashMap<Class<? extends Temporary>, Resolver<? extends Temporary>> RESOLVER_MAP = new HashMap<>();
 	static {
 		//FieldTemporary, MethodInvocationTemporary, InvokeSpecialTemporary, ConstantTemporary
@@ -38,7 +39,7 @@ public class ConstantFolder {
 		//NegateOperatorTemporary, CastOperatorTemporary, CompareOperatorTemporary,
 		//ObjectInstanceTemporary, ArrayInstanceTemporary, ArrayLengthTemporary,
 		//InstanceofTemporary, PhiTemporary
-		
+
 		//guaranteed that if the Resolver is called, the temporary argument is constant
 		RESOLVER_MAP.put(FieldTemporary.class, (FieldTemporary t) -> t.getValue());
 		RESOLVER_MAP.put(MethodInvocationTemporary.class, (MethodInvocationTemporary t) -> {
@@ -50,7 +51,7 @@ public class ConstantFolder {
 		RESOLVER_MAP.put(InvokeSpecialTemporary.class, (InvokeSpecialTemporary t) -> null);
 		RESOLVER_MAP.put(ConstantTemporary.class, (ConstantTemporary t) -> t.getValue());
 		RESOLVER_MAP.put(ParameterTemporary.class, (ParameterTemporary t) -> null);
-		RESOLVER_MAP.put(ArrayReferenceTemporary.class, (ArrayReferenceTemporary t) -> Array.get(resolve(t.arrayRef), (Integer)resolve(t.index)));
+		RESOLVER_MAP.put(ArrayReferenceTemporary.class, (ArrayReferenceTemporary t) -> Array.get(resolve(t.arrayRef), ((Number)resolve(t.index)).intValue()));
 		RESOLVER_MAP.put(BinaryOperatorTemporary.class, (BinaryOperatorTemporary t) -> {
 			Object lhs = resolve(t.getLeftHandSideTemporary());
 			Object rhs = resolve(t.getRightHandSideTemporary());
@@ -89,7 +90,7 @@ public class ConstantFolder {
 					result = l / r;
 					break;
 				}
-			}else if(t.type == Type.INT_TYPE){
+			}else if(t.type == Type.INT_TYPE || t.type == Type.BYTE_TYPE || t.type == Type.SHORT_TYPE || t.type == Type.CHAR_TYPE || t.type == Type.BOOLEAN_TYPE){
 				int l = ((Number) lhs).intValue();
 				int r = ((Number) rhs).intValue();
 				switch(t.getArithmeticType()){
@@ -190,20 +191,87 @@ public class ConstantFolder {
 			}
 		});
 		RESOLVER_MAP.put(CastOperatorTemporary.class, (CastOperatorTemporary t) -> resolve(t.getOperand()));
+		RESOLVER_MAP.put(CompareOperatorTemporary.class, (CompareOperatorTemporary t) -> {
+			Object lhs = resolve(t.lhs);
+			Object rhs = t.rhs == null ? null : resolve(t.rhs);
+			Object result = null;
+			switch(t.opcode){
+			case Opcodes.LCMP:
+				if(((Long)lhs).longValue() == ((Long)rhs).longValue()){
+					result = 0;
+				}else if(((Long)lhs).longValue() > (((Long)rhs).longValue())){
+					result = 1;
+				}else if(((Long)lhs).longValue() < (((Long)rhs).longValue())){
+					result = -1;
+				}
+				break;
+			case Opcodes.FCMPL:
+			case Opcodes.FCMPG:
+				if(((Float)lhs).floatValue() == ((Float)rhs).floatValue()){
+					result = 0;
+				}else if(((Float)lhs).floatValue() > ((Float)rhs).floatValue()){
+					result = 1;
+				}else if(((Float)lhs).floatValue() < ((Float)rhs).floatValue()){
+					result = -1;
+				}else{
+					result = t.opcode == Opcodes.FCMPL ? -1 : 1;
+				}
+				break;
+			case Opcodes.DCMPL:
+			case Opcodes.DCMPG:
+				if(((Double)lhs).doubleValue() == ((Double)rhs).doubleValue()){
+					result = 0;
+				}else if(((Double)lhs).doubleValue() > ((Double)rhs).doubleValue()){
+					result = 1;
+				}else if(((Double)lhs).doubleValue() < ((Double)rhs).doubleValue()){
+					result = -1;
+				}else{
+					result = t.opcode == Opcodes.DCMPL ? -1 : 1;
+				}
+				break;
+			default:
+				break;
+			}
+			if(result == null){
+				throw new RuntimeException("Could not resolve CompareOperatorTemporary: " + t);
+			}
+			return result;
+		});
+		//ObjectInstanceTemporary, ArrayInstanceTemporary, ArrayLengthTemporary,
+		//InstanceofTemporary, PhiTemporary
+		RESOLVER_MAP.put(ObjectInstanceTemporary.class, (ObjectInstanceTemporary t) -> null);
+		RESOLVER_MAP.put(ArrayInstanceTemporary.class, (ArrayInstanceTemporary t) -> null);
+		RESOLVER_MAP.put(ArrayLengthOperator.class, (ArrayLengthOperator t) -> {
+			System.err.println("Warning: ArrayLengthOperator resolution not implemented.");
+			Temporary arrayRef = t.arrayRef;
+			if(!(arrayRef instanceof ArrayInstanceTemporary)){
+				return null;
+			}
+			return null;
+		});
+		RESOLVER_MAP.put(InstanceofOperatorTemporary.class, (InstanceofOperatorTemporary t) -> {
+			Type objectType = t.objectRef.getType();
+			Type toCheck = t.toCheck;
+			System.err.println("Warning: InstanceofOperatorTemporary does not check against full class hierarchy.");
+			return objectType.equals(toCheck);
+		});
+		RESOLVER_MAP.put(PhiTemporary.class, (t) ->{
+			throw new RuntimeException("I don't know how you called me: " + t.getClass());
+		});
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private static Object resolve(Temporary t){
 		return ((Resolver)RESOLVER_MAP.get(t.getClass())).resolve(t);
 	}
-	
+
 	private final DataManager dm;
 
 	public ConstantFolder(DataManager dm){
 		this.dm = dm;
 	}
 
-	private void fold(MethodNode mn, BinaryOperatorTemporary t){
+	/*private void fold(MethodNode mn, BinaryOperatorTemporary t){
 		Object lhs = resolve(t.getLeftHandSideTemporary());
 		if(lhs == null) return;
 		Object rhs = resolve(t.getRightHandSideTemporary());
@@ -249,7 +317,7 @@ public class ConstantFolder {
 				result = l / r;
 				break;
 			}
-		}else if(t.type == Type.INT_TYPE){
+		}else if(t.type == Type.INT_TYPE || t.type == Type.BYTE_TYPE || t.type == Type.SHORT_TYPE || t.type == Type.CHAR_TYPE || t.type == Type.BOOLEAN_TYPE){
 			int l = ((Number) lhs).intValue();
 			int r = ((Number) rhs).intValue();
 			switch(t.getArithmeticType()){
@@ -277,15 +345,15 @@ public class ConstantFolder {
 			case BinaryOperatorTemporary.USHR:
 				result = l >>> r;
 				break;
-			case BinaryOperatorTemporary.AND:
-				result = l & r;
-				break;
-			case BinaryOperatorTemporary.OR:
-				result = l | r;
-				break;
-			case BinaryOperatorTemporary.XOR:
-				result = l ^ r;
-				break;
+				case BinaryOperatorTemporary.AND:
+					result = l & r;
+					break;
+				case BinaryOperatorTemporary.OR:
+					result = l | r;
+					break;
+				case BinaryOperatorTemporary.XOR:
+					result = l ^ r;
+					break;
 			}
 		}else if(t.type == Type.LONG_TYPE){
 			toInsert.add(new InsnNode(Opcodes.POP2));
@@ -340,7 +408,7 @@ public class ConstantFolder {
 		mn.instructions.remove(t.getDeclaration());
 
 		System.out.println("Replaced " + t + " with " + result);
-	}
+	}*/
 
 	public void optimize(){
 		for(ClassNode cn : dm.classes){
@@ -353,16 +421,8 @@ public class ConstantFolder {
 
 				for(int i = 0; i < size; i++){
 					final Temporary T = arr[i];
-					for(int j = i + 1; j < size; j++){
-						final Temporary S = arr[j];
-						if(T.equals(S)){
-							ArrayList<AbstractInsnNode> block = T.getContiguousBlockSorted();
-							if(block != null && block.size() >= 3){
-								System.err.println(cn.name + "." + mn.name + mn.desc + "\n\tInstruction " + T.getDeclaration().getIndex() + " == Instruction " + S.getDeclaration().getIndex() + 
-										"\n\t" + T + " == " + S);
-							}
-						}
-					}
+					if(T instanceof ConstantTemporary || T.getConstancy() != Temporary.CONSTANT) continue;
+					System.out.println(T + " == " + resolve(T));
 				}
 			}
 		}

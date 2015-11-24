@@ -11,6 +11,14 @@ public class PeepholeOptimizations {
 		this.dm = dm;
 	}
 	
+	//TODO
+	/*
+	 * dup
+	 * dup  => dup2
+	 * 
+	 * pop
+	 * pop => pop2
+	 */
 	public void optimize(){
 		for(MethodInformation mi : dm.methodInformations.values()){
 			

@@ -482,6 +482,10 @@ public class DataManager {
 		}
 
 		public void setValue(Object newValue){
+			if(!(getDeclaration() instanceof LdcInsnNode)){
+				System.err.println("Warning: cannot set value of cloned ConstantTemporary.");
+				return;
+			}
 			((LdcInsnNode)getDeclaration()).cst = newValue;
 			value = newValue;
 		}
@@ -509,7 +513,7 @@ public class DataManager {
 		}
 
 		public Object getValue(){
-			return ((LdcInsnNode)getDeclaration()).cst;
+			return value;
 		}
 
 		@Override
@@ -762,7 +766,7 @@ public class DataManager {
 		public String toString(){
 			return "-" + tmp.toString();
 		}
-		
+
 		public Temporary getOperand(){
 			return tmp;
 		}
@@ -825,7 +829,7 @@ public class DataManager {
 			this.opcode = opcode;
 			tmp.addReference(decl, null);
 		}
-		
+
 		public Temporary getOperand(){
 			return tmp;
 		}
@@ -868,21 +872,23 @@ public class DataManager {
 
 	public static class CompareOperatorTemporary extends Temporary {
 
-		private final Temporary rhs;
-		private final Temporary lhs;
-		private final int opcode;
+		public final Temporary rhs;
+		public final Temporary lhs;
+		public final int opcode;
 
-		public CompareOperatorTemporary(AbstractInsnNode decl, Temporary rhs, Temporary lhs, int opcode) {
+		public CompareOperatorTemporary(AbstractInsnNode decl, Temporary lhs, Temporary rhs, int opcode) {
 			super(decl, Type.INT_TYPE);
 			this.rhs = rhs;
 			this.lhs = lhs;
 			this.opcode = opcode;
-			rhs.addReference(decl, null);
+			if(rhs != null){
+				rhs.addReference(decl, null);
+			}
 			lhs.addReference(decl, null);
 		}
 
 		public int getConstancy() {
-			return mergeConstancy(rhs, lhs);
+			return rhs == null ? lhs.getConstancy() : mergeConstancy(rhs, lhs);
 		}
 
 		@Override
@@ -890,17 +896,20 @@ public class DataManager {
 			if(this == o) return true;
 			if(!(o instanceof CompareOperatorTemporary)) return false;
 			CompareOperatorTemporary cot = (CompareOperatorTemporary) o;
-			return opcode == cot.opcode && rhs.equals(cot.rhs) && lhs.equals(cot.lhs);
+			return opcode == cot.opcode && rhs.equals(cot.rhs) && 
+					(lhs == null ? cot.lhs == null : lhs.equals(cot.lhs));
 		}
 
 		public String toString(){
-			return lhs.toString() + " CMP(" + opcode + ") " + rhs.toString();
+			return rhs == null ? ("CMP(" + lhs.toString() + ")") : (lhs.toString() + " CMP(" + opcode + ") " + rhs.toString());
 		}
 
 		@Override
 		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
 			lhs.addRelevantInstructionsToListSorted(list);
-			rhs.addRelevantInstructionsToListSorted(list);
+			if(rhs != null){
+				rhs.addRelevantInstructionsToListSorted(list);
+			}
 			list.add(getDeclaration());
 		}
 
@@ -908,13 +917,15 @@ public class DataManager {
 		protected void addCriticalTemporariesToList(ArrayList<Temporary> list) {
 			list.add(lhs);
 			//lhs.addCriticalTemporariesToList(list);
-			list.add(rhs);
+			if(rhs != null){
+				list.add(rhs);
+			}
 			//rhs.addCriticalTemporariesToList(list);
 		}
 
 		@Override
 		protected Temporary clone() {
-			return new CompareOperatorTemporary(getDeclaration(), rhs, lhs, opcode);
+			return new CompareOperatorTemporary(getDeclaration(), lhs, rhs, opcode);
 		}
 
 	}
@@ -1039,7 +1050,7 @@ public class DataManager {
 
 	public static class ArrayLengthOperator extends Temporary {
 
-		private final Temporary arrayRef;
+		public final Temporary arrayRef;
 
 		public ArrayLengthOperator(AbstractInsnNode decl, Temporary arrayRef){
 			super(decl, Type.INT_TYPE);
@@ -1085,8 +1096,8 @@ public class DataManager {
 
 	public static class InstanceofOperatorTemporary extends Temporary {
 
-		private final Temporary objectRef;
-		private final Type toCheck;
+		public final Temporary objectRef;
+		public final Type toCheck;
 
 		public InstanceofOperatorTemporary(AbstractInsnNode decl, Temporary objectRef, Type toCheck){
 			super(decl, Type.INT_TYPE);
@@ -2768,9 +2779,9 @@ public class DataManager {
 						case DCMPL:
 						case DCMPG:
 							popped = new Temporary[2];
-							rhs = popped[0] = stack.pop();
-							lhs = popped[1] = stack.pop();
-							toPush = new CompareOperatorTemporary(executingInstruction, rhs, lhs, executingInstruction.getOpcode());
+							rhs = popped[1] = stack.pop();
+							lhs = popped[0] = stack.pop();
+							toPush = new CompareOperatorTemporary(executingInstruction, lhs, rhs, executingInstruction.getOpcode());
 							break;
 						case IFEQ:
 						case IFNE:
@@ -2779,7 +2790,9 @@ public class DataManager {
 						case IFGT:
 						case IFLE:
 							popped = new Temporary[1];
-							popped[0] = stack.pop();
+							lhs = popped[0] = stack.pop();
+							//branch statements
+							//toPush = new CompareOperatorTemporary(executingInstruction, lhs, null, executingInstruction.getOpcode());
 							break;
 						case IF_ICMPEQ:
 						case IF_ICMPNE:
@@ -2790,8 +2803,10 @@ public class DataManager {
 						case IF_ACMPEQ:
 						case IF_ACMPNE:
 							popped = new Temporary[2];
-							popped[0] = stack.pop();
-							popped[1] = stack.pop();
+							rhs = popped[1] = stack.pop();
+							lhs = popped[0] = stack.pop();
+							//branch statements
+							//toPush = new CompareOperatorTemporary(executingInstruction, lhs, rhs, executingInstruction.getOpcode());
 							break;
 						case GOTO:
 							break;

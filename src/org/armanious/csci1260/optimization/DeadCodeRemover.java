@@ -16,6 +16,11 @@ public class DeadCodeRemover {
 		this.dm = dm;
 	}
 
+	//TODO also, if we had locals like:
+	// I, I, [I, I
+	//that we optimized to
+	// I, uninitialized, [I, I
+	// change the indices i of all locals after uninitialized local to i - 1, dec mn.maxLocals
 	public void optimize(){
 		for(ClassNode cn : dm.classes){
 			for(MethodNode mn : cn.methods){
