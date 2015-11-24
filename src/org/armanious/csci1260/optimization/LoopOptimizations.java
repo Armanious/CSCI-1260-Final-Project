@@ -22,8 +22,8 @@ import org.objectweb.asm.tree.IincInsnNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.VarInsnNode;
 import org.objectweb.asm.util.Textifier;
-import org.objectweb.asm.util.TraceMethodVisitor;
 
+//make sure you do NOT run LoopOptimizations twice; it will break it
 public class LoopOptimizations {
 
 	private final DataManager dm;

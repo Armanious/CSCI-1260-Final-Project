@@ -12,7 +12,7 @@ public class Tester {
 		File f = new File("/Users/david/OneDrive/Documents/workspace/CSCI 1260 Tests/bin");
 		String[] args = new String[]{f.toString(), 
 				"run_output=true",
-				"obfuscation.compress_output=false",
+				"obfuscation.compress_output=true",
 				"obfuscation.main_class=test.hi.Hello",
 				"obfuscation.name_pattern=Il",
 				"obfuscation.name_length=10",

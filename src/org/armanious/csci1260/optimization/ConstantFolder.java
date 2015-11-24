@@ -1,5 +1,7 @@
 package org.armanious.csci1260.optimization;
 
+import java.util.ArrayList;
+
 import org.armanious.csci1260.DataManager;
 import org.armanious.csci1260.DataManager.BinaryOperatorTemporary;
 import org.armanious.csci1260.DataManager.ConstantTemporary;
@@ -7,6 +9,7 @@ import org.armanious.csci1260.DataManager.MethodInformation;
 import org.armanious.csci1260.DataManager.Temporary;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
+import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.InsnNode;
@@ -181,7 +184,11 @@ public class ConstantFolder {
 					for(int j = i + 1; j < size; j++){
 						final Temporary S = arr[j];
 						if(T.equals(S)){
-							//System.err.println(cn.name + "." + mn.name + mn.desc + "\n\tInstruction " + T.getDeclaration().getIndex() + " == Instruction " + S.getDeclaration().getIndex());
+							ArrayList<AbstractInsnNode> block = T.getContiguousBlockSorted();
+							if(block != null && block.size() >= 3){
+								System.err.println(cn.name + "." + mn.name + mn.desc + "\n\tInstruction " + T.getDeclaration().getIndex() + " == Instruction " + S.getDeclaration().getIndex() + 
+										"\n\t" + T + " == " + S);
+							}
 						}
 					}
 				}
