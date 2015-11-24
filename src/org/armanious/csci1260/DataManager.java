@@ -210,11 +210,12 @@ public class DataManager {
 		private final String name;
 
 		private final Temporary value;
+		private final boolean isVolatile;
 
 		private int numWrites;
 
 		//loading from LocalVariable from basic clone()
-		private FieldTemporary(FieldTemporary parent, Temporary value, Type type){
+		private FieldTemporary(FieldTemporary parent, Temporary value, Type type, boolean isVolatile){
 			super(null, type);
 			this.parent = parent;
 			isConstant = false;
@@ -222,9 +223,10 @@ public class DataManager {
 			owner = null;
 			name = null;
 			this.value = value;
+			this.isVolatile = isVolatile;
 		}
 
-		private FieldTemporary(FieldTemporary parent, AbstractInsnNode insn, MethodNode mn, Temporary value){
+		private FieldTemporary(FieldTemporary parent, AbstractInsnNode insn, MethodNode mn, Temporary value, boolean isVolatile){
 			super(insn, (insn.getOpcode() == Opcodes.GETFIELD || insn.getOpcode() == Opcodes.GETSTATIC) ? parent.getType() : Type.VOID_TYPE);
 			this.parent = parent;
 			isConstant = false;
@@ -232,6 +234,7 @@ public class DataManager {
 			owner = null;
 			name = null;
 			this.value = value;
+			this.isVolatile = isVolatile;
 
 			if(getType() != Type.VOID_TYPE){
 				parent.numWrites++;
@@ -240,7 +243,7 @@ public class DataManager {
 			}
 		}
 
-		public FieldTemporary(boolean isConstant, Temporary objectRef, String owner, String name, Type type){
+		public FieldTemporary(boolean isConstant, Temporary objectRef, String owner, String name, Type type, boolean isVolatile){
 			super(null, type);
 			this.parent = null;
 			this.isConstant = isConstant;
@@ -248,10 +251,11 @@ public class DataManager {
 			this.owner = owner;
 			this.name = name;
 			this.value = null;
+			this.isVolatile = isVolatile;
 		}
 
 		public int getConstancy() {
-			return parent == null ? (isConstant ? CONSTANT : (numWrites <= 1 ? CONSTANT : NOT_CONSTANT)) : parent.getConstancy();
+			return parent == null ? (isVolatile ? NOT_CONSTANT : (isConstant ? CONSTANT : (numWrites <= 1 ? CONSTANT : NOT_CONSTANT))) : parent.getConstancy();
 		}
 
 		private String getOwner(){
@@ -266,7 +270,7 @@ public class DataManager {
 			return parent == null ? objectRef : parent.getObjectRef();
 		}
 
-		private Temporary getValue(){
+		public Temporary getValue(){
 			return value;
 		}
 
@@ -311,13 +315,17 @@ public class DataManager {
 			}
 		}
 
+		public boolean isVolatile() {
+			return isVolatile;
+		}
+
 		@Override
 		protected Temporary clone() {
-			return new FieldTemporary(parent, value, getType());
+			return new FieldTemporary(parent, value, getType(), isVolatile);
 		}
 
 		public FieldTemporary cloneSpecialCase(AbstractInsnNode ain, MethodNode mn, Temporary value){
-			return new FieldTemporary(this, ain, mn, value);
+			return new FieldTemporary(this, ain, mn, value, isVolatile);
 		}
 
 	}
@@ -575,8 +583,8 @@ public class DataManager {
 			}
 		}
 
-		private final Temporary arrayRef;
-		private final Temporary index;
+		public final Temporary arrayRef;
+		public final Temporary index;
 
 		public ArrayReferenceTemporary(AbstractInsnNode decl, Temporary arrayRef, Temporary index) {
 			super(decl, computeArrayDereferenceType(arrayRef));
@@ -754,6 +762,10 @@ public class DataManager {
 		public String toString(){
 			return "-" + tmp.toString();
 		}
+		
+		public Temporary getOperand(){
+			return tmp;
+		}
 
 		@Override
 		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
@@ -812,6 +824,10 @@ public class DataManager {
 			this.tmp = tmp;
 			this.opcode = opcode;
 			tmp.addReference(decl, null);
+		}
+		
+		public Temporary getOperand(){
+			return tmp;
 		}
 
 		@Override
@@ -2241,9 +2257,10 @@ public class DataManager {
 			if(instance == null){
 				final Type type = Type.getType(desc);
 				boolean isConstant = false;
+				boolean isVolatile = true;
 				ClassHierarchyTreeNode chtn = defineClassHierarchyTreeNode(owner);
 				if(chtn == null){
-					instance = new FieldTemporary(false, objectRef, owner, name, type);
+					instance = new FieldTemporary(isConstant, objectRef, owner, name, type, isVolatile);
 				}
 				outer: do {
 					ClassNode cn = getClassNode(chtn.name);
@@ -2251,6 +2268,7 @@ public class DataManager {
 						FieldNode fn = cn.getFieldNode(name);
 						if(fn != null){
 							isConstant = Modifier.isFinal(fn.access);
+							isVolatile = Modifier.isVolatile(fn.access);
 							break outer;
 						}
 					}else{
@@ -2259,18 +2277,19 @@ public class DataManager {
 							for(Field f : clazz.getDeclaredFields()){
 								if(f.getName().equals(name)){
 									isConstant = Modifier.isFinal(f.getModifiers());
+									isVolatile = Modifier.isVolatile(f.getModifiers());
 									break outer;
 								}
 							}
 						} catch (ClassNotFoundException e) {
-							instance = new FieldTemporary(false, objectRef, owner, name, type);
+							instance = new FieldTemporary(false, objectRef, owner, name, type, true);
 							//unknown field
 
 							//throw new RuntimeException(e);
 						}
 					}
 				} while((chtn = chtn.superNode) != null);
-				instance = new FieldTemporary(isConstant, objectRef, owner, name, type);
+				instance = new FieldTemporary(isConstant, objectRef, owner, name, type, isVolatile);
 			}
 			return instance.cloneSpecialCase(instruction, mn, toStore);
 		}

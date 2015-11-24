@@ -10,6 +10,7 @@ import org.armanious.csci1260.DataManager;
 import org.armanious.csci1260.DataManager.ArrayReferenceTemporary;
 import org.armanious.csci1260.DataManager.BasicBlock;
 import org.armanious.csci1260.DataManager.BlockEdge;
+import org.armanious.csci1260.DataManager.FieldTemporary;
 import org.armanious.csci1260.DataManager.LoopEntry;
 import org.armanious.csci1260.DataManager.MethodInformation;
 import org.armanious.csci1260.DataManager.MethodInvocationTemporary;
@@ -84,6 +85,9 @@ public class LoopOptimizations {
 		}
 		if(t instanceof MethodInvocationTemporary && ((MethodInvocationTemporary)t).hasSideEffects()){
 			return false; //assume all methods have side effects for now
+		}
+		if(t instanceof FieldTemporary && ((FieldTemporary)t).isVolatile()){
+			return false;
 		}
 		if(t.getContiguousBlockSorted() == null) return false;
 		if(t.getDeclaration() != null){
@@ -291,8 +295,6 @@ public class LoopOptimizations {
 				}*/
 
 				if(invariantTemporaries.size() > 0){
-
-					HashSet<Tuple<Temporary, LoopEntry>> insertionChecker = new HashSet<>();
 
 					ArrayList<Tuple<Temporary, BasicBlock>> invariantRedefinitionLocations = new ArrayList<>();
 
