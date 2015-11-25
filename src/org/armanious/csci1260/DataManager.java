@@ -3066,6 +3066,11 @@ public class DataManager {
 					errorMessage.append("\tInstruction that failed to execute: ").append(Textifier.OPCODES[executingInstruction.getOpcode()]).append('\n');
 					errorMessage.append("\tExecuting block stack at start: " + executingBlock.stackAtStart + "\n\tCurrently\t: " + stack).append('\n');
 					errorMessage.append("\tLocals: " + locals).append('\n');
+					Textifier textifier = new Textifier();
+					mn.accept(new TraceMethodVisitor(textifier));
+					for(int i = 0; i < textifier.text.size(); i++){
+						errorMessage.append(i).append(": ").append(textifier.text.get(i));
+					}
 					log.severe(errorMessage.toString());
 					return;
 				}

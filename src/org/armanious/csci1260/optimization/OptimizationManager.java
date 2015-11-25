@@ -11,7 +11,7 @@ public final class OptimizationManager {
 	
 	public static void run(DataManager dm, ArrayList<ClassNode> classes, boolean inline_methods){
 		new RedundantComputationRemover(dm).optimize();
-		new ConstantFolder(dm).optimize();
+		new ConstantFolder(dm).optimize();	
 		new LoopOptimizations(dm).optimize();
 		new DeadCodeRemover(dm).optimize();
 	}

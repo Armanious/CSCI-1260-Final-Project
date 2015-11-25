@@ -32,6 +32,9 @@ public class RedundantComputationRemover {
 		return i;
 	}
 	
+	//TODO
+	//For each temporary T, if there is a temoprary in locals at the current block that equals T,
+	//replace T.getContiguousBlockSorted() with the correct VarInsnNode
 	public void optimize(){
 		for(ClassNode cn : dm.classes){
 			for(MethodNode mn : cn.methods){

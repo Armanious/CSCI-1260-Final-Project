@@ -90,13 +90,14 @@ public class LoopOptimizations {
 			return false;
 		}
 		if(t.getContiguousBlockSorted() == null) return false;
-		if(t.getDeclaration() != null){
-			if(t.getDeclaration().getOpcode() >= Opcodes.IASTORE && t.getDeclaration().getOpcode() <= Opcodes.SASTORE){
-				return false;
-			}
-			if(t.getDeclaration() instanceof VarInsnNode && !isVarInsnInvariant(varianceMap, currentEntry, (VarInsnNode)t.getDeclaration())){
-				return false;
-			}
+		if((t.getDeclaration().getOpcode() >= Opcodes.IASTORE && t.getDeclaration().getOpcode() <= Opcodes.SASTORE) ||
+				(t.getDeclaration().getOpcode() >= Opcodes.ILOAD && t.getDeclaration().getOpcode() <= Opcodes.ALOAD)){
+			return false;
+		}
+		if(t.getDeclaration() instanceof VarInsnNode && 
+				(!isVarInsnInvariant(varianceMap, currentEntry, (VarInsnNode)t.getDeclaration()))){
+			//|| t.getDeclaration().getOpcode() >= Opcodes.ILOAD && t.getDeclaration().getOpcode() <= Opcodes.ILOAD)){
+			return false;
 		}
 		ArrayList<Temporary> criticalTemporaries = t.getCriticalTemporaries();
 		if(criticalTemporaries == null || criticalTemporaries.size() == 0) return false;
@@ -120,6 +121,39 @@ public class LoopOptimizations {
 
 	}
 
+	private Iterator<LoopEntry> getIteratorInnermostLoopOutward(LoopEntry root){
+		Stack<LoopEntry> toAnalyze = new Stack<>();
+		Stack<LoopEntry> toSearch = new Stack<>();
+		toSearch.push(root);
+		while(!toSearch.isEmpty()){
+			LoopEntry searching = toSearch.pop();
+			for(LoopEntry child : searching.children){
+				toAnalyze.push(child);
+				toSearch.push(child);
+			}
+		}
+		return toAnalyze.iterator();
+	}
+
+	private void handleLoopRoot(MethodInformation mi, LoopEntry root){
+		Iterator<LoopEntry> iter = getIteratorInnermostLoopOutward(root);
+		while(iter.hasNext()){
+			LoopEntry loop = iter.next();
+		}
+	}
+
+	private void handleMethod(MethodInformation mi){
+		for(LoopEntry root : mi.loopRoots.values()){
+			handleLoopRoot(mi, root);
+		}
+	}
+
+	public void optimize_clear(){
+		for(MethodInformation mi : dm.methodInformations.values()){
+			handleMethod(mi);
+		}
+	}
+
 	public void optimize(){
 		int numLoopInvariants = 0;
 		for(MethodInformation mi : dm.methodInformations.values()){
@@ -139,7 +173,7 @@ public class LoopOptimizations {
 				LoopEntry loopRoot = loopRoots.get(loopRootEntry);
 				Stack<LoopEntry> toAnalyze = new Stack<>();
 				Stack<LoopEntry> toSearch = new Stack<>();
-				toAnalyze.push(loopRoot);
+				//toAnalyze.push(loopRoot); what a bug
 				toSearch.push(loopRoot);
 				while(!toSearch.isEmpty()){
 					LoopEntry searching = toSearch.pop();
@@ -205,17 +239,6 @@ public class LoopOptimizations {
 								break;
 							}
 
-							//can't do this yet; local variable might be set after this instruction
-							/*Temporary t = mi.temporaries.get(ain);
-								if(t != null && isInvariant(mi, variantLocals, entry, t)){
-									HashSet<Temporary> set = invariantTemporaries.get(entry);
-									if(set == null){
-										set = new HashSet<>();
-										invariantTemporaries.put(entry, set);
-									}
-									set.add(t);
-								}*/
-
 						}
 					}
 				}
@@ -240,6 +263,8 @@ public class LoopOptimizations {
 							if(t == null) continue;
 							//System.out.println("Instruction " + ain.getIndex() + ": " + Textifier.OPCODES[ain.getOpcode()] + " -> " + t);
 							if(isInvariant(mi, variantLocals, entry, t)){
+								//System.out.println("Instruction " + ain.getIndex() + ": " + Textifier.OPCODES[ain.getOpcode()] + " -> " + t);
+
 								ArrayList<Temporary> list = invariantTemporaries.get(entry);
 								if(list == null){
 									list = new ArrayList<>();
@@ -247,52 +272,11 @@ public class LoopOptimizations {
 								}
 								list.add(t);
 
-								/*boolean shouldSet = true;
-								Tuple<Temporary, LoopEntry> toReplace = null;
-								for(Tuple<Temporary, LoopEntry> v : whereToRelocateInvariants){
-									if(v.val1.equals(t)){
-										if(entry.contains(v.val2.entry)){
-											toReplace = v;
-											shouldSet = true;
-										}else{
-											shouldSet = false;
-										}
-										break;
-									}
-								}
-								if(shouldSet){
-									if(toReplace != null){
-										whereToRelocateInvariants.remove(toReplace);
-									}
-									whereToRelocateInvariants.add(new Tuple<>(t, entry));
-								}*/
-
 							}
 
 						}
 					}
 				}
-
-				/*if(invariantTemporaries.size() > 0){
-					System.out.println(dm.methodNodeToOwnerMap.get(mi.mn).name + "." + mi.mn.name + mi.mn.desc + ":");
-					System.out.println("variantLocals = ");
-					for(int key : variantLocals.keySet()){
-						System.out.println("\tlocal_" + key + " is set in LoopEntry.entry = " + variantLocals.get(key).entry);
-					}
-					System.out.println("invariantTemporaries = ");
-					for(LoopEntry key : invariantTemporaries.keySet()){
-						System.out.println("\tEntry to move to = " + key.entry.toString());
-						for(Temporary invariant : invariantTemporaries.get(key)){
-							System.out.println("\t\tInstruction " + invariant.getDeclaration().getIndex() + " (" + Textifier.OPCODES[invariant.getDeclaration().getOpcode()] + "): " + invariant);
-							ArrayList<AbstractInsnNode> block = invariant.getContiguousBlock();
-							System.out.println("\t\t\t" + block.get(0).getIndex() + " - " + block.get(block.size() - 1).getIndex());
-						}
-						//+ "; t = " + invariantTemporaries.get(key) + "; at instruction " + invariantTemporaries.get(key));
-					}
-					System.out.println(whereToRelocateInvariants);
-
-					System.out.println();
-				}*/
 
 				if(invariantTemporaries.size() > 0){
 
@@ -322,54 +306,16 @@ public class LoopOptimizations {
 								indexOfLocalVariable = mi.mn.maxLocals + invariantRedefinitionLocations.size();
 								invariantRedefinitionLocations.add(new Tuple<>(invariant, loop.entry));
 							}
-
 							replace(mi.mn.instructions, invariant.getContiguousBlockSorted(), new VarInsnNode(DataManager.getLoadOpcode(invariant.getType()), indexOfLocalVariable));
 
 						}
-
-						//make sure we have the temporaries that were first defined still defined first, even if they are invariant
-
-
-						/*for(Temporary invariant : invariantTemporaries.get(loop)){
-							ArrayList<AbstractInsnNode> block = invariant.getContiguousBlock();
-
-
-
-
-							Tuple<Temporary, LoopEntry> tuple = null;
-							int localVarOffset = -1;
-							for(int localVarOffsetPossibility = 0; localVarOffsetPossibility < whereToRelocateInvariants.size(); localVarOffsetPossibility++){
-								Tuple<Temporary, LoopEntry> tle = whereToRelocateInvariants.get(localVarOffsetPossibility);
-								if(tle.val1.equals(invariant)){
-									tuple = tle;
-									localVarOffset = localVarOffsetPossibility;
-									break;
-								}
-							}
-							if(localVarOffset == -1){
-								System.err.println("Invariant with null parent");
-								continue;
-							}
-
-							int indexOfLocalVariable = mi.mn.maxLocals + localVarOffset;
-
-							if(insertionChecker.add(tuple)){
-								BasicBlock entry = tuple.val2.entry;
-								AbstractInsnNode lastWhichIsGoto = entry.getLastInsnInBlock();
-								System.err.println("Inserting " + tuple.val1 + " at the end of " + entry);
-								insertBefore(mi.mn.instructions, lastWhichIsGoto, block, new VarInsnNode(DataManager.getStoreOpcode(invariant.getType()), indexOfLocalVariable),
-										new VarInsnNode(DataManager.getLoadOpcode(invariant.getType()), indexOfLocalVariable));
-
-							}else{
-								replace(mi.mn.instructions, block, new VarInsnNode(DataManager.getLoadOpcode(invariant.getType()), indexOfLocalVariable));
-							}
-						//}*/
 					};
 
 					for(Tuple<Temporary, BasicBlock> toInsertClone : invariantRedefinitionLocations){
 						int offsetOfLocalVariable = invariantRedefinitionLocations.indexOf(toInsertClone);
 						int indexOfLocalVariable = mi.mn.maxLocals + offsetOfLocalVariable;
 						insertBefore(mi.mn.instructions, toInsertClone.val2, toInsertClone.val1.getContiguousBlockSorted(), new VarInsnNode(DataManager.getStoreOpcode(toInsertClone.val1.getType()), indexOfLocalVariable));
+						System.out.println("Loop invariant at " + dm.methodNodeToOwnerMap.get(mi.mn).name + "." + mi.mn.name + mi.mn.desc + ": " + toInsertClone.val1 + ", now stored in " + indexOfLocalVariable);
 					}
 					numLoopInvariants += invariantRedefinitionLocations.size();
 					mi.mn.maxLocals += invariantRedefinitionLocations.size();
