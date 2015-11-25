@@ -1,6 +1,7 @@
 package org.armanious.csci1260.optimization;
 
 import java.lang.reflect.Array;
+import java.util.ArrayList;
 import java.util.HashMap;
 
 import org.armanious.csci1260.DataManager;
@@ -21,9 +22,15 @@ import org.armanious.csci1260.DataManager.ObjectInstanceTemporary;
 import org.armanious.csci1260.DataManager.ParameterTemporary;
 import org.armanious.csci1260.DataManager.PhiTemporary;
 import org.armanious.csci1260.DataManager.Temporary;
+import org.armanious.csci1260.Tuple;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
+import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.InsnList;
+import org.objectweb.asm.tree.InsnNode;
+import org.objectweb.asm.tree.IntInsnNode;
+import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
 public class ConstantFolder {
@@ -51,10 +58,17 @@ public class ConstantFolder {
 		RESOLVER_MAP.put(InvokeSpecialTemporary.class, (InvokeSpecialTemporary t) -> null);
 		RESOLVER_MAP.put(ConstantTemporary.class, (ConstantTemporary t) -> t.getValue());
 		RESOLVER_MAP.put(ParameterTemporary.class, (ParameterTemporary t) -> null);
-		RESOLVER_MAP.put(ArrayReferenceTemporary.class, (ArrayReferenceTemporary t) -> Array.get(resolve(t.arrayRef), ((Number)resolve(t.index)).intValue()));
+		RESOLVER_MAP.put(ArrayReferenceTemporary.class, (ArrayReferenceTemporary t) -> {
+			final Object arrayRef = resolve(t.arrayRef);
+			final Object index = resolve(t.index);
+			return (arrayRef != null && index != null) ? Array.get(arrayRef, ((Number)index).intValue()) : null;
+		});
 		RESOLVER_MAP.put(BinaryOperatorTemporary.class, (BinaryOperatorTemporary t) -> {
 			Object lhs = resolve(t.getLeftHandSideTemporary());
 			Object rhs = resolve(t.getRightHandSideTemporary());
+			if(lhs == null || rhs == null){
+				return null;
+			}
 			Object result = null;
 			if(t.type == Type.DOUBLE_TYPE){
 				double l = (Double) lhs;
@@ -177,6 +191,7 @@ public class ConstantFolder {
 		//InstanceofTemporary, PhiTemporary
 		RESOLVER_MAP.put(NegateOperatorTemporary.class, (NegateOperatorTemporary t) -> {
 			Object val = resolve(t.getOperand());
+			if(val == null) return null;
 			switch(t.getType().getSort()){
 			case Type.INT:
 				return -(Integer)val;
@@ -190,7 +205,36 @@ public class ConstantFolder {
 				throw new RuntimeException("Could not resolve NegateOperatorTemporary: " + t);
 			}
 		});
-		RESOLVER_MAP.put(CastOperatorTemporary.class, (CastOperatorTemporary t) -> resolve(t.getOperand()));
+		RESOLVER_MAP.put(CastOperatorTemporary.class, (CastOperatorTemporary t) -> {
+			Number val = (Number) resolve(t.getOperand());
+			if(val == null) return null;
+			switch(t.getDeclaration().getOpcode()){
+			case Opcodes.L2I:
+			case Opcodes.F2I:
+			case Opcodes.D2I:
+				return val.intValue();
+			case Opcodes.I2L:
+			case Opcodes.F2L:
+			case Opcodes.D2L:
+				return val.longValue();
+			case Opcodes.I2F:
+			case Opcodes.L2F:
+			case Opcodes.D2F:
+				return val.floatValue();
+			case Opcodes.I2D:
+			case Opcodes.L2D:
+			case Opcodes.F2D:
+				return val.doubleValue();
+			case Opcodes.I2B:
+				return val.byteValue();
+			case Opcodes.I2C:
+				return (char)(val.intValue());
+			case Opcodes.I2S:
+				return val.shortValue();
+			default:
+				throw new IllegalArgumentException("Unknown primitive cast opcode: " + t.getDeclaration().getOpcode());
+			}
+		});
 		RESOLVER_MAP.put(CompareOperatorTemporary.class, (CompareOperatorTemporary t) -> {
 			Object lhs = resolve(t.lhs);
 			Object rhs = t.rhs == null ? null : resolve(t.rhs);
@@ -266,6 +310,7 @@ public class ConstantFolder {
 	}
 
 	private final DataManager dm;
+	private int numConstantsFolded;
 
 	public ConstantFolder(DataManager dm){
 		this.dm = dm;
@@ -416,15 +461,192 @@ public class ConstantFolder {
 				MethodInformation mi = dm.methodInformations.get(mn);
 				if(mi == null) continue;
 
-				final int size = mi.temporaries.size();
-				final Temporary[] arr = mi.temporaries.values().toArray(new Temporary[size]);
+				final ArrayList<Tuple<ArrayList<AbstractInsnNode>, Object>> validTargets = new ArrayList<>();
+				//ordered (and will be sorted) ArrayList of (block, value)
+				//we don't need a reference to the temporary; we just know that
+				//the instructions contained within block will always evaluate to value
+				for(Temporary T : mi.temporaries.values()){
+					if(T instanceof ConstantTemporary || 
+							//we can implement the below classes if we have a fake execution environment
+							//we will not do that for now; it is a possible extension of the program
+							//in the future
+							T instanceof FieldTemporary ||
+							T instanceof MethodInvocationTemporary || 
+							T instanceof ObjectInstanceTemporary || 
+							T instanceof ArrayReferenceTemporary || 
+							T instanceof ArrayInstanceTemporary || 
+							T.getConstancy() != Temporary.CONSTANT) continue;
 
-				for(int i = 0; i < size; i++){
-					final Temporary T = arr[i];
-					if(T instanceof ConstantTemporary || T.getConstancy() != Temporary.CONSTANT) continue;
-					System.out.println(T + " == " + resolve(T));
+					ArrayList<AbstractInsnNode> block = T.getContiguousBlockSorted();
+					if(block == null) continue;
+
+					int blockStart = block.get(0).getIndex();
+					int blockEnd = block.get(block.size() - 1).getIndex();
+
+					Object resolved = resolve(T);
+					if(resolved == null) continue;
+					//System.out.println("Working with constant at instruction " + T.getDeclaration().getIndex() + " (" + T + " == " + resolved + ")");
+
+					//TODO make it a binary search-based insert instead of
+					//randomly inserting;
+					//TODO even better check for collisions; if found, fg
+					boolean addNew = true;
+					for(int i = 0; i < validTargets.size(); i++){
+						int block2start = validTargets.get(i).val1.get(0).getIndex();
+						int block2end = validTargets.get(i).val1.get(validTargets.get(i).val1.size() - 1).getIndex();
+						if(block2start > blockEnd || blockStart > block2end){
+							//no intersection; add as we should
+							//addNew = true
+						}else if(block2start >= blockStart && block2end <= blockEnd){
+							//block2 is smaller (theoretically can be equal, but we will never
+							//have a Temporary with identical instruction lists
+							//replace block2 with block
+							validTargets.set(i, new Tuple<>(block, resolved));
+							addNew = false;
+							break;
+						}else if(blockStart >= block2start && blockEnd <= block2end){
+							//block2 is greater than the block we are evaluating
+							//do nothing
+							addNew = false;
+						}else{
+							System.out.println("Currently stored: " + block2start + " - " + block2end);
+							System.out.println("Comparing against: " + blockStart + " - " + blockEnd);
+							System.out.println();
+						}
+					}
+					if(addNew){
+						validTargets.add(new Tuple<>(block, resolved));
+					}
+				}
+				if(validTargets.size() > 0){
+					for(Tuple<ArrayList<AbstractInsnNode>, Object> target : validTargets){
+						replace(mn.instructions, target.val1, getConstantInstruction(target.val2));
+					}
+					numConstantsFolded += validTargets.size();
+					System.out.println("Folded " + validTargets.size() + " constants in " + dm.methodNodeToOwnerMap.get(mn).name + "." + mn.name + mn.desc);
+					mi.recompute();
+				}
+
+			}
+		}
+		System.out.println("Folded " + numConstantsFolded + " constants.");
+	}
+
+	private static AbstractInsnNode getConstantInstruction(Object val){
+		if(val instanceof Integer || val instanceof Character){
+			int number = (Integer) val;
+			switch(number){
+			case -1:
+				return new InsnNode(Opcodes.ICONST_M1);
+			case 0:
+				return new InsnNode(Opcodes.ICONST_0);
+			case 1:
+				return new InsnNode(Opcodes.ICONST_1);
+			case 2:
+				return new InsnNode(Opcodes.ICONST_2);
+			case 3:
+				return new InsnNode(Opcodes.ICONST_3);
+			case 4:
+				return new InsnNode(Opcodes.ICONST_4);
+			case 5:
+				return new InsnNode(Opcodes.ICONST_5);
+			default:
+				if(number >= Byte.MIN_VALUE && number <= Byte.MAX_VALUE){
+					return new IntInsnNode(Opcodes.BIPUSH, number);
+				}else if(number >= Short.MIN_VALUE && number <= Short.MAX_VALUE){
+					return new IntInsnNode(Opcodes.SIPUSH, number);
+				}else{
+					return new LdcInsnNode(number);
 				}
 			}
+		}else if(val instanceof Long){
+			long number = (Long)val;
+			if(number == 0){
+				return new InsnNode(Opcodes.LCONST_0);
+			}else if(number == 1){
+				return new InsnNode(Opcodes.LCONST_1);
+			}else{
+				return new LdcInsnNode(number);
+			}
+		}else if(val instanceof Float){
+			float number = (Float) val;
+			if(number == 0F){
+				return new InsnNode(Opcodes.FCONST_0);
+			}else if(number == 1F){
+				return new InsnNode(Opcodes.FCONST_1);
+			}else if(number == 2F){
+				return new InsnNode(Opcodes.FCONST_2);
+			}else{
+				return new LdcInsnNode(number);
+			}
+		}else if(val instanceof Double){
+			double number = (Double) val;
+			if(number == 0D){
+				return new InsnNode(Opcodes.DCONST_0);
+			}else if(number == 1D){
+				return new InsnNode(Opcodes.DCONST_1);
+			}else{
+				return new LdcInsnNode(number);
+			}
+		}else if(val instanceof Short){
+			short number = (Short) val;
+			switch(number){
+			case -1:
+				return new InsnNode(Opcodes.ICONST_M1);
+			case 0:
+				return new InsnNode(Opcodes.ICONST_0);
+			case 1:
+				return new InsnNode(Opcodes.ICONST_1);
+			case 2:
+				return new InsnNode(Opcodes.ICONST_2);
+			case 3:
+				return new InsnNode(Opcodes.ICONST_3);
+			case 4:
+				return new InsnNode(Opcodes.ICONST_4);
+			case 5:
+				return new InsnNode(Opcodes.ICONST_5);
+			default:
+				if(number >= Byte.MIN_VALUE && number <= Byte.MAX_VALUE){
+					return new IntInsnNode(Opcodes.BIPUSH, number);
+				}else{
+					return new IntInsnNode(Opcodes.SIPUSH, number);
+				}
+			}
+		}else if(val instanceof Byte){
+			byte number = (Byte)val;
+			switch(number){
+			case -1:
+				return new InsnNode(Opcodes.ICONST_M1);
+			case 0:
+				return new InsnNode(Opcodes.ICONST_0);
+			case 1:
+				return new InsnNode(Opcodes.ICONST_1);
+			case 2:
+				return new InsnNode(Opcodes.ICONST_2);
+			case 3:
+				return new InsnNode(Opcodes.ICONST_3);
+			case 4:
+				return new InsnNode(Opcodes.ICONST_4);
+			case 5:
+				return new InsnNode(Opcodes.ICONST_5);
+			default:
+				return new IntInsnNode(Opcodes.BIPUSH, number);
+			}
+		}else if(val instanceof Boolean){
+			return new InsnNode((Boolean)val ? Opcodes.ICONST_1 : Opcodes.ICONST_0);
+		}else if(val instanceof String){
+			return new LdcInsnNode(val);
+		}
+		throw new RuntimeException("Unknown type of constant: " + val.getClass().getSimpleName());
+	}
+
+	//copied from LoopOptimizations
+	private static void replace(InsnList list, ArrayList<AbstractInsnNode> block, AbstractInsnNode insn) {
+		//list.get(0);
+		//System.err.println("Replacing " + block.get(0).getIndex() + " - " + block.get(block.size() - 1).getIndex() + " with " + Textifier.OPCODES[varInsnNode.getOpcode()]);
+		list.insertBefore(block.get(0), insn);
+		for(AbstractInsnNode ain : block){
+			list.remove(ain);
 		}
 	}
 

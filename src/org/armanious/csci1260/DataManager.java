@@ -150,8 +150,22 @@ public class DataManager {
 			return t;
 		}
 
+		public final ArrayList<AbstractInsnNode> getContiguousBlockSortedDebug(){
+			final ArrayList<AbstractInsnNode> list = new ArrayList<>();
+			addRelevantInstructionsToListSorted(list);
+			System.err.println(getDeclaration().getOpcode() >= Opcodes.ILOAD && getDeclaration().getOpcode() <= Opcodes.ALOAD);
+			System.out.println(toString() + " uses instructions: " + list.get(0).getIndex() + " to " + list.get(list.size() - 1).getIndex());
+			return null;
+		}
+
 		public final ArrayList<AbstractInsnNode> getContiguousBlockSorted(){
 			final ArrayList<AbstractInsnNode> list = new ArrayList<>();
+			if(getDeclaration().getOpcode() >= Opcodes.ILOAD && getDeclaration().getOpcode() <= Opcodes.ALOAD){
+				//cloned instruction with only a load; i.e. we are stored in a local variable
+				//we don't need to go through the other checks
+				list.add(getDeclaration());
+				return list;
+			}
 			addRelevantInstructionsToListSorted(list);
 			if(list.contains(null)){
 				return null;
@@ -2497,7 +2511,7 @@ public class DataManager {
 							}else if(lin.cst instanceof String){
 								type = Type.getType(String.class);
 							}else{
-								throw new RuntimeException();
+								throw new RuntimeException("Unknown type of constant: " + lin.cst.getClass().getSimpleName());
 							}
 
 							toPush = new ConstantTemporary(executingInstruction, lin.cst, type);
@@ -2508,10 +2522,11 @@ public class DataManager {
 						case DLOAD:
 						case ALOAD:
 							VarInsnNode vvi = (VarInsnNode) executingInstruction;
-							toPush = locals.get(vvi.var).cloneOnInstruction(executingInstruction);
+							toPush = locals.get(vvi.var);
 							if(toPush == null){
-								System.err.println("Undefined local variable " + vvi.var + "\n\t" + childrenMap);
+								throw new RuntimeException("Undefined local variable " + vvi.var + "\n\t" + childrenMap);
 							}
+							toPush = toPush.cloneOnInstruction(executingInstruction);
 							toPush.addReference(executingInstruction, mn);
 							addToTemporariesRead(executingBlock, toPush);
 
@@ -2976,6 +2991,7 @@ public class DataManager {
 							stack.push(temporary, executingInstruction);
 							break;
 						case CHECKCAST:
+							//we can't model this nor do we need to
 							break;
 						case INSTANCEOF:
 							tin = (TypeInsnNode) executingInstruction;
@@ -3051,7 +3067,6 @@ public class DataManager {
 					errorMessage.append("\tExecuting block stack at start: " + executingBlock.stackAtStart + "\n\tCurrently\t: " + stack).append('\n');
 					errorMessage.append("\tLocals: " + locals).append('\n');
 					log.severe(errorMessage.toString());
-					System.exit(0);//TODO FIXME Remove me!!!
 					return;
 				}
 

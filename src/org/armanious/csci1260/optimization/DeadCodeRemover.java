@@ -21,6 +21,11 @@ public class DeadCodeRemover {
 	//that we optimized to
 	// I, uninitialized, [I, I
 	// change the indices i of all locals after uninitialized local to i - 1, dec mn.maxLocals
+	/*
+	 * for each method that is not marked static that behaves as static, make it static,
+	 * change the locals, update all references to that method (removing the instance being
+	 * pushed onto the stack)
+	 */
 	public void optimize(){
 		for(ClassNode cn : dm.classes){
 			for(MethodNode mn : cn.methods){

@@ -2,11 +2,8 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.nio.file.DirectoryStream.Filter;
 import java.util.Stack;
-
-import org.objectweb.asm.Type;
 
 public class LineCounter {
 

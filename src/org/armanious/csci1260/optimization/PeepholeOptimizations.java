@@ -19,6 +19,10 @@ public class PeepholeOptimizations {
 	 * pop
 	 * pop => pop2
 	 */
+	
+	/*
+	 * Math stuff
+	 */
 	public void optimize(){
 		for(MethodInformation mi : dm.methodInformations.values()){
 			
