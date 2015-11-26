@@ -97,4 +97,9 @@ public final class JavaStack {
 		}
 	}
 
+	public void set(int i, Temporary t, AbstractInsnNode definingInstruction) {
+		stack[i] = t;
+		definingInstructions[i] = definingInstruction;
+	}
+
 }

@@ -97,12 +97,28 @@ public class DataManager {
 		private AbstractInsnNode declaration;
 
 		public Map<AbstractInsnNode, MethodNode> references; 
+		
+		private boolean overrideConstancy = false;
+		private int forcedConstancy = Integer.MAX_VALUE;
 
 		public Temporary(AbstractInsnNode declaration, Type type){
 			this.declaration = declaration;
 			this.type = type;
 			index = numTemporaries++;
 			GLOBAL_TEMPORARIES.add(this);
+		}
+		
+		int getConstancyInternal(){
+			return CONSTANCY_UNKNOWN;
+		}
+		
+		public final int getConstancy(){
+			return overrideConstancy ? forcedConstancy : getConstancyInternal();
+		}
+		
+		public final void forceConstancy(int forcedConstancy){
+			overrideConstancy = true;
+			this.forcedConstancy = forcedConstancy;
 		}
 
 		protected static int mergeConstancy(Temporary...others){
@@ -196,10 +212,6 @@ public class DataManager {
 			return list;
 		}
 
-		public int getConstancy(){
-			return CONSTANCY_UNKNOWN;
-		}
-
 		public void addReference(AbstractInsnNode insn, MethodNode mn){
 			if(references == null){
 				references = new HashMap<>();
@@ -268,8 +280,8 @@ public class DataManager {
 			this.isVolatile = isVolatile;
 		}
 
-		public int getConstancy() {
-			return parent == null ? (isVolatile ? NOT_CONSTANT : (isConstant ? CONSTANT : (numWrites <= 1 ? CONSTANT : NOT_CONSTANT))) : parent.getConstancy();
+		public int getConstancyInternal() {
+			return parent == null ? (isVolatile ? NOT_CONSTANT : (isConstant ? CONSTANT : (numWrites <= 1 ? CONSTANT : NOT_CONSTANT))) : parent.getConstancyInternal();
 		}
 
 		private String getOwner(){
@@ -407,7 +419,7 @@ public class DataManager {
 		}
 
 		@Override
-		public int getConstancy() {
+		public int getConstancyInternal() {
 			return hasSideEffects() ? NOT_CONSTANT : mergeConstancy(args);
 		}
 
@@ -505,7 +517,7 @@ public class DataManager {
 		}
 
 		@Override
-		public int getConstancy() {
+		public int getConstancyInternal() {
 			return CONSTANT;
 		}
 
@@ -612,7 +624,7 @@ public class DataManager {
 		}
 
 		@Override
-		public int getConstancy() {
+		public int getConstancyInternal() {
 			return mergeConstancy(arrayRef, index);
 		}
 
@@ -710,7 +722,7 @@ public class DataManager {
 		}
 
 		@Override
-		public int getConstancy() {
+		public int getConstancyInternal() {
 			return mergeConstancy(rhs, lhs);
 		}
 
@@ -765,8 +777,8 @@ public class DataManager {
 		}
 
 		@Override
-		public int getConstancy() {
-			return tmp.getConstancy();
+		public int getConstancyInternal() {
+			return tmp.getConstancyInternal();
 		}
 
 		@Override
@@ -849,8 +861,8 @@ public class DataManager {
 		}
 
 		@Override
-		public int getConstancy() {
-			return tmp.getConstancy();
+		public int getConstancyInternal() {
+			return tmp.getConstancyInternal();
 		}
 
 		@Override
@@ -901,8 +913,8 @@ public class DataManager {
 			lhs.addReference(decl, null);
 		}
 
-		public int getConstancy() {
-			return rhs == null ? lhs.getConstancy() : mergeConstancy(rhs, lhs);
+		public int getConstancyInternal() {
+			return rhs == null ? lhs.getConstancyInternal() : mergeConstancy(rhs, lhs);
 		}
 
 		@Override
@@ -961,7 +973,7 @@ public class DataManager {
 		}
 
 		@Override
-		public int getConstancy() {
+		public int getConstancyInternal() {
 			return CONSTANT;
 		}
 
@@ -1022,7 +1034,7 @@ public class DataManager {
 		}
 
 		@Override
-		public int getConstancy() {
+		public int getConstancyInternal() {
 			return mergeConstancy(dimensionCounts);
 		}
 
@@ -1073,8 +1085,8 @@ public class DataManager {
 		}
 
 		@Override
-		public int getConstancy() {
-			return arrayRef.getConstancy();
+		public int getConstancyInternal() {
+			return arrayRef.getConstancyInternal();
 		}
 
 		@Override
@@ -1120,8 +1132,8 @@ public class DataManager {
 			objectRef.addReference(decl, null);
 		}
 
-		public int getConstancy() {
-			return objectRef.getConstancy();
+		public int getConstancyInternal() {
+			return objectRef.getConstancyInternal();
 		};
 
 		@Override
@@ -1218,7 +1230,7 @@ public class DataManager {
 		}
 
 		@Override
-		public int getConstancy() {
+		public int getConstancyInternal() {
 			return NOT_CONSTANT;
 		}
 
@@ -1453,7 +1465,7 @@ public class DataManager {
 	}
 
 	private static final Level DEFAULT_LOG_LEVEL = Level.FINE;
-	private static final String TO_DEBUG = null;//"test/hi/Hello.fundamentalLoopTest(I)V";
+	private static final String TO_DEBUG = "org/armanious/makkar/Camper.loadFromLine(Ljava/lang/String;)Lorg/armanious/makkar/Camper;";
 
 	private static final Logger log = Logger.getLogger("DataManager");
 	static {
@@ -1463,7 +1475,7 @@ public class DataManager {
 			public void publish(LogRecord record) {
 				if(log.getLevel().intValue() <= record.getLevel().intValue()){
 					if(record.getLevel().intValue() >= Level.SEVERE.intValue()){
-						System.err.println(record.getLoggerName() + ": " + record.getMessage());
+						//System.err.println(record.getLoggerName() + ": " + record.getMessage());
 					}else{
 						System.out.println(record.getLoggerName() + ": " + record.getMessage());
 					}
@@ -1754,7 +1766,6 @@ public class DataManager {
 			}
 			b1.successors.add(edge);
 			b1.lastInsnInBlock = onInstruction;
-
 			b2.predecessors.add(edge);
 		}
 
@@ -2086,7 +2097,7 @@ public class DataManager {
 								tempSet.addAll(dominanceMap.get(predecessor));
 							}else{
 								Set<BasicBlock> predecessorSet = dominanceMap.get(predecessor);
-								tempSet.removeIf((block) -> predecessorSet.contains(block));
+								tempSet.removeIf((block) -> !predecessorSet.contains(block));
 							}
 						}
 						blocksDominatingCurrent.addAll(tempSet);
@@ -2225,6 +2236,8 @@ public class DataManager {
 			for(BasicBlock B : blocks.values()){
 				BasicBlock C = iDominanceMap.get(B);
 				if(C != null){
+					
+					
 					Set<BasicBlock> children = childrenMap.get(C);
 					if(children == null){
 						children = new HashSet<>();
@@ -2261,6 +2274,30 @@ public class DataManager {
 				//TODO FIXME I don't know if this works!
 			}*/
 		//}
+		
+		private JavaStack mergeStacksAndClone(JavaStack prev, JavaStack toMerge){
+			if(prev == null || prev.size() == 0) return toMerge.clone();
+			if(toMerge == null || toMerge.size() == 0) return prev.clone();
+			if(prev.size() != toMerge.size()){
+				JavaStack toRet = toMerge.clone();
+				System.err.println("Warning: cannot merge stacks with different sizes:\n\t" + prev + "\n\t" + toMerge + "\n");
+				for(int i = 0; i < toRet.size(); i++){
+					toRet.elementAt(i).forceConstancy(Temporary.NOT_CONSTANT);
+				}
+				return toMerge;
+			}
+			JavaStack toRet = toMerge.clone();
+			for(int i = 0; i < prev.size(); i++){
+				if(toRet.elementAt(i) != prev.elementAt(i)){
+					//shallow equals is sufficient for virtually all merges
+					if(!toRet.elementAt(i).equals(prev.elementAt(i))){
+						//now they are actually not equal
+						toRet.set(i, new PhiTemporary(new Temporary[]{toRet.elementAt(i), prev.elementAt(i)}, -1, null), null);
+					}
+				}
+			}
+			return toRet;
+		}
 
 		private FieldTemporary getFieldTemporary(AbstractInsnNode instruction, MethodNode mn, Temporary objectRef, String owner, String name, String desc, Temporary toStore){
 			FieldTemporary instance = null;
@@ -2286,6 +2323,7 @@ public class DataManager {
 				ClassHierarchyTreeNode chtn = defineClassHierarchyTreeNode(owner);
 				if(chtn == null){
 					instance = new FieldTemporary(isConstant, objectRef, owner, name, type, isVolatile);
+					return instance.cloneSpecialCase(instruction, mn, toStore);
 				}
 				outer: do {
 					ClassNode cn = getClassNode(chtn.name);
@@ -2322,11 +2360,11 @@ public class DataManager {
 		private void doSymbolicExecution(){
 			if(Modifier.isAbstract(mn.access) || Modifier.isNative(mn.access)) return;
 			log.finest("Symbolically executing");
-
+			
 
 			LinkedList<BasicBlock> toExecute = new LinkedList<>();
 			Set<BasicBlock> executed = new HashSet<>();
-			toExecute.push(getFirstBlock());
+			toExecute.add(getFirstBlock());
 
 			//Stack<Temporary> temporariesStack = new Stack<>();
 			JavaStack stack = new JavaStack();
@@ -2425,12 +2463,16 @@ public class DataManager {
 				//execute
 				final Iterator<AbstractInsnNode> insnsOfBlock = executingBlock.instructionIteratorForward();
 				AbstractInsnNode executingInstruction = null;
-
+				
+				if(executingBlock.toString().equals("B-33") && mn.name.equals("loadFromLine")){
+					System.out.println("aqui");
+				}
+				
 				try{
 					while(insnsOfBlock.hasNext()){
 						executingInstruction = insnsOfBlock.next();
 
-						log.finest(instructionsInText[executingInstruction.getIndex() + 1].toString());
+						log.finest(instructionsInText[executingInstruction.getIndex()].toString());
 						if(executingInstruction.getType() == AbstractInsnNode.FRAME ||
 								executingInstruction.getType() == AbstractInsnNode.LABEL ||
 								executingInstruction.getType() == AbstractInsnNode.LINE){
@@ -2766,6 +2808,7 @@ public class DataManager {
 									new BinaryOperatorTemporary(executingInstruction,
 											new ConstantTemporary(executingInstruction, iin.incr, Type.INT_TYPE),
 											localTemp, BinaryOperatorTemporary.ADD));
+							localTemp.forceConstancy(Temporary.NOT_CONSTANT);
 							executingBlock.localsSetInBlock.put(iin.var, locals.get(iin.var));
 							//addToTemporariesWritten(executingBlock, locals.get(iin.var));
 							break;
@@ -3050,7 +3093,7 @@ public class DataManager {
 
 					}
 				}catch(Throwable throwable){
-					throwable.printStackTrace();
+					//throwable.printStackTrace();
 					mn.instructions.get(0); //build index of instructions
 					final StringBuilder errorMessage =
 							new StringBuilder("Symbolic execution of ").append(methodNodeToOwnerMap.get(mn).name)
@@ -3060,18 +3103,18 @@ public class DataManager {
 					//+ "\nPsuedo Stack Trace: \n");
 					if(executingInstruction.getPrevious().getOpcode() != -1){
 						//Tuple<Temporary[], Temporary> info = operandsResultPerInsn.get(executingInstruction.getPrevious());
-						errorMessage.append("\tPrevious instruction that executed: ").append(Textifier.OPCODES[executingInstruction.getPrevious().getOpcode()]).append('\n');
+						errorMessage.append("\tPrevious instruction that executed: ").append(Textifier.OPCODES[executingInstruction.getPrevious().getOpcode()]).append(" (Instruction ").append(executingInstruction.getPrevious().getIndex()).append(')').append('\n');
 						//errorMessage.append("\t\t").append(info.val2 == null ? "null" : info.val2.toString()).append('\n');
 					}
-					errorMessage.append("\tInstruction that failed to execute: ").append(Textifier.OPCODES[executingInstruction.getOpcode()]).append('\n');
+					errorMessage.append("\tInstruction that failed to execute: ").append(Textifier.OPCODES[executingInstruction.getOpcode()]).append(" (Instruction ").append(executingInstruction.getIndex()).append(')').append('\n');
 					errorMessage.append("\tExecuting block stack at start: " + executingBlock.stackAtStart + "\n\tCurrently\t: " + stack).append('\n');
 					errorMessage.append("\tLocals: " + locals).append('\n');
 					Textifier textifier = new Textifier();
 					mn.accept(new TraceMethodVisitor(textifier));
 					for(int i = 0; i < textifier.text.size(); i++){
-						errorMessage.append(i).append(": ").append(textifier.text.get(i));
+						//errorMessage.append(i).append(": ").append(textifier.text.get(i));
 					}
-					log.severe(errorMessage.toString());
+					//log.severe(errorMessage.toString());
 					return;
 				}
 
@@ -3085,10 +3128,10 @@ public class DataManager {
 				log.finest("Locals at end of " + executingBlock + ": " + locals);
 
 				Set<BasicBlock> children = childrenMap.get(executingBlock);
-
-				if(children != null){
+				
+				/*if(children != null){
 					for(BasicBlock child : children){
-						child.stackAtStart = stack.clone();
+						child.stackAtStart = mergeStacksAndClone(child.stackAtStart, stack);
 
 						child.localsAtStart.clear();
 						child.localsAtStart.addAll(locals);
@@ -3098,6 +3141,17 @@ public class DataManager {
 						//TODO go through a loop again so that the values re-flow
 						//and mark NOT_CONSTANT whatever is actually not constant
 						//through the phi operators
+					}
+				}*/
+				for(BlockEdge edge : executingBlock.successors){
+					BasicBlock successor = edge.b2;
+					if(!executed.contains(successor)){
+						successor.localsAtStart.clear();
+						successor.localsAtStart.addAll(locals);
+						successor.stackAtStart = mergeStacksAndClone(successor.stackAtStart, stack);
+						if(!toExecute.contains(successor)){
+							toExecute.add(successor);
+						}
 					}
 				}
 

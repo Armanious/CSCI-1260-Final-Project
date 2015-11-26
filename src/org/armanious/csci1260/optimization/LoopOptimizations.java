@@ -84,7 +84,7 @@ public class LoopOptimizations {
 			t = resolvePrematurePhiTemporary((PhiTemporary)t);
 		}
 		if(t instanceof MethodInvocationTemporary && ((MethodInvocationTemporary)t).hasSideEffects()){
-			return false; //assume all methods have side effects for now
+			return false;
 		}
 		if(t instanceof FieldTemporary && ((FieldTemporary)t).isVolatile()){
 			return false;

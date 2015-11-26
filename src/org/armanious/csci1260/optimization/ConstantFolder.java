@@ -32,6 +32,9 @@ import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.IntInsnNode;
 import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.util.Textifier;
+import org.objectweb.asm.util.TraceMethodVisitor;
+import org.objectweb.asm.xml.ASMContentHandler;
 
 public class ConstantFolder {
 
@@ -71,8 +74,8 @@ public class ConstantFolder {
 			}
 			Object result = null;
 			if(t.type == Type.DOUBLE_TYPE){
-				double l = (Double) lhs;
-				double r = (Double) rhs;
+				double l = ((Number)lhs).doubleValue();
+				double r = ((Number)rhs).doubleValue();
 				switch(t.getArithmeticType()){
 				case BinaryOperatorTemporary.ADD:
 					result = l + r;
@@ -88,8 +91,8 @@ public class ConstantFolder {
 					break;
 				}
 			}else if(t.type == Type.FLOAT_TYPE){
-				float l = (Float) lhs;
-				float r = (Float) rhs;
+				float l = ((Number)lhs).floatValue();
+				float r = ((Number)rhs).floatValue();
 				switch(t.getArithmeticType()){
 				case BinaryOperatorTemporary.ADD:
 					result = l + r;
@@ -143,8 +146,8 @@ public class ConstantFolder {
 					break;
 				}
 			}else if(t.type == Type.LONG_TYPE){
-				long l = (Long) lhs;
-				long r = (Long) rhs;
+				long l = ((Number)lhs).longValue();
+				long r = ((Number)rhs).longValue();
 				switch(t.getArithmeticType()){
 				case BinaryOperatorTemporary.ADD:
 					result = l + r;
@@ -501,6 +504,8 @@ public class ConstantFolder {
 							//block2 is smaller (theoretically can be equal, but we will never
 							//have a Temporary with identical instruction lists
 							//replace block2 with block
+							System.out.println(T + " ==> " + "Instructions " + block.get(0).getIndex() + " - " + block.get(block.size() - 1).getIndex() + " = " + resolved);
+							
 							validTargets.set(i, new Tuple<>(block, resolved));
 							addNew = false;
 							break;
@@ -515,6 +520,8 @@ public class ConstantFolder {
 						}
 					}
 					if(addNew){
+						System.out.println(T + " ==> " + "Instructions " + block.get(0).getIndex() + " - " + block.get(block.size() - 1).getIndex() + " = " + resolved);
+					
 						validTargets.add(new Tuple<>(block, resolved));
 					}
 				}
@@ -525,6 +532,19 @@ public class ConstantFolder {
 					numConstantsFolded += validTargets.size();
 					System.out.println("Folded " + validTargets.size() + " constants in " + dm.methodNodeToOwnerMap.get(mn).name + "." + mn.name + mn.desc);
 					mi.recompute();
+					//fix phi temporaries in ASMContentHandler$Rule.getAccess
+					/*
+					 * for each local index i set in block B after executing B
+					 * 		idom(B).mergeLocal(i);
+					 * 
+					 * 
+					 * when about to execute block B
+					 * 		locals = idom(B).locals.clone()
+					 * 
+					 * 
+					 * idom(B) represents the scope of the executing block
+					 * TODO
+					 */
 				}
 
 			}
