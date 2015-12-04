@@ -286,12 +286,15 @@ public class ConstantFolder {
 		RESOLVER_MAP.put(ObjectInstanceTemporary.class, (ObjectInstanceTemporary t) -> null);
 		RESOLVER_MAP.put(ArrayInstanceTemporary.class, (ArrayInstanceTemporary t) -> null);
 		RESOLVER_MAP.put(ArrayLengthOperator.class, (ArrayLengthOperator t) -> {
-			System.err.println("Warning: ArrayLengthOperator resolution not implemented.");
-			Temporary arrayRef = t.arrayRef;
-			if(!(arrayRef instanceof ArrayInstanceTemporary)){
-				return null;
+			//System.err.println("Warning: ArrayLengthOperator resolution not implemented: " + t);
+			Temporary arrayInstance = t.arrayRef;
+			int dimensionToGetLengthOf = 0;
+			while(!(arrayInstance instanceof ArrayInstanceTemporary)){
+				arrayInstance = ((ArrayReferenceTemporary)arrayInstance).arrayRef;
+				dimensionToGetLengthOf++;
 			}
-			return null;
+			Temporary length = ((ArrayInstanceTemporary)arrayInstance).dimensionCounts[dimensionToGetLengthOf];
+			return resolve(length);
 		});
 		RESOLVER_MAP.put(InstanceofOperatorTemporary.class, (InstanceofOperatorTemporary t) -> {
 			Type objectType = t.objectRef.getType();
@@ -456,96 +459,79 @@ public class ConstantFolder {
 	}*/
 
 	public void optimize(){
-		for(ClassNode cn : dm.classes){
-			for(MethodNode mn : cn.methods){
-				MethodInformation mi = dm.methodInformations.get(mn);
-				if(mi == null) continue;
+		for(MethodInformation mi : dm.methodInformations.values()){
+			//if(!mi.mn.name.equals("fundamentalLoopTest")) continue;
+			final ArrayList<Tuple<ArrayList<AbstractInsnNode>, Object>> validTargets = new ArrayList<>();
+			//ordered (and will be sorted) ArrayList of (block, value)
+			//we don't need a reference to the temporary; we just know that
+			//the instructions contained within block will always evaluate to value
+			for(Temporary T : mi.temporaries.values()){
+				if(T instanceof ConstantTemporary || 
+						//we can implement the below classes if we have a fake execution environment
+						//we will not do that for now; it is a possible extension of the program
+						//in the future
+						T instanceof FieldTemporary ||
+						T instanceof MethodInvocationTemporary || 
+						T instanceof ObjectInstanceTemporary || 
+						//T instanceof ArrayReferenceTemporary || 
+						//T instanceof ArrayInstanceTemporary || 
+						T.getConstancy() != Temporary.CONSTANT) continue;
 
-				final ArrayList<Tuple<ArrayList<AbstractInsnNode>, Object>> validTargets = new ArrayList<>();
-				//ordered (and will be sorted) ArrayList of (block, value)
-				//we don't need a reference to the temporary; we just know that
-				//the instructions contained within block will always evaluate to value
-				for(Temporary T : mi.temporaries.values()){
-					if(T instanceof ConstantTemporary || 
-							//we can implement the below classes if we have a fake execution environment
-							//we will not do that for now; it is a possible extension of the program
-							//in the future
-							T instanceof FieldTemporary ||
-							T instanceof MethodInvocationTemporary || 
-							T instanceof ObjectInstanceTemporary || 
-							T instanceof ArrayReferenceTemporary || 
-							T instanceof ArrayInstanceTemporary || 
-							T.getConstancy() != Temporary.CONSTANT) continue;
+				ArrayList<AbstractInsnNode> block = T.getContiguousBlockSorted();
+				if(block == null) continue;
 
-					ArrayList<AbstractInsnNode> block = T.getContiguousBlockSorted();
-					if(block == null) continue;
+				int blockStart = block.get(0).getIndex();
+				int blockEnd = block.get(block.size() - 1).getIndex();
 
-					int blockStart = block.get(0).getIndex();
-					int blockEnd = block.get(block.size() - 1).getIndex();
+				Object resolved = resolve(T);
+				if(resolved == null) continue;
+				//System.out.println("Working with constant at instruction " + T.getDeclaration().getIndex() + " (" + T + " == " + resolved + ")");
 
-					Object resolved = resolve(T);
-					if(resolved == null) continue;
-					//System.out.println("Working with constant at instruction " + T.getDeclaration().getIndex() + " (" + T + " == " + resolved + ")");
-					
-					boolean addNew = true;
-					for(int i = 0; i < validTargets.size(); i++){
-						int storedBlockStart = validTargets.get(i).val1.get(0).getIndex();
-						int storedBlockEnd = validTargets.get(i).val1.get(validTargets.get(i).val1.size() - 1).getIndex();
-						if(storedBlockStart > blockEnd || blockStart > storedBlockEnd){
-							//no intersection; add as we should
-							//addNew = true
-						}else if(storedBlockStart >= blockStart && storedBlockEnd <= blockEnd){
-							//block2 is smaller (theoretically can be equal, but we will never
-							//have a Temporary with identical instruction lists
-							//replace block2 with block
-							System.out.println("REPLACING; " + T + " ==> " + "Instructions " + block.get(0).getIndex() + " - " + block.get(block.size() - 1).getIndex() + " = " + resolved);
-							
-							validTargets.set(i, new Tuple<>(block, resolved));
-							addNew = false;
-							break;
-						}else if(blockStart >= storedBlockStart && blockEnd <= storedBlockEnd){
-							//block2 is greater than the block we are evaluating
-							//do nothing
-							addNew = false;
-						}else{
-							System.out.println("Currently stored: " + storedBlockStart + " - " + storedBlockEnd);
-							System.out.println("Comparing against: " + blockStart + " - " + blockEnd);
-							System.out.println();
-						}
-					}
-					if(addNew){
-						System.out.println(T + " ==> " + "Instructions " + block.get(0).getIndex() + " - " + block.get(block.size() - 1).getIndex() + " = " + resolved);
-					
-						//System.out.println(T + " ==> " + "Instructions " + block.get(0).getIndex() + " - " + block.get(block.size() - 1).getIndex() + " = " + resolved);
-					
-						validTargets.add(new Tuple<>(block, resolved));
+				
+				//psuedocode copied to LoopOptimizations
+				boolean addNew = true;
+				for(int i = 0; i < validTargets.size(); i++){
+					int storedBlockStart = validTargets.get(i).val1.get(0).getIndex();
+					int storedBlockEnd = validTargets.get(i).val1.get(validTargets.get(i).val1.size() - 1).getIndex();
+					if(storedBlockStart > blockEnd || blockStart > storedBlockEnd){
+						//no intersection; add as we should
+						//addNew = true
+					}else if(storedBlockStart >= blockStart && storedBlockEnd <= blockEnd){
+						//block2 is smaller (theoretically can be equal, but we will never
+						//have a Temporary with identical instruction lists
+						//replace block2 with block
+						//System.out.println("REPLACING; " + T + " ==> " + "Instructions " + block.get(0).getIndex() + " - " + block.get(block.size() - 1).getIndex() + " = " + resolved);
+
+						validTargets.set(i, new Tuple<>(block, resolved));
+						addNew = false;
+						break;
+					}else if(blockStart >= storedBlockStart && blockEnd <= storedBlockEnd){
+						//block2 is greater than the block we are evaluating
+						//do nothing
+						addNew = false;
+					}else{
+						System.out.println("Currently stored: " + storedBlockStart + " - " + storedBlockEnd);
+						System.out.println("Comparing against: " + blockStart + " - " + blockEnd);
+						System.out.println();
 					}
 				}
-				if(validTargets.size() > 0){
-					for(Tuple<ArrayList<AbstractInsnNode>, Object> target : validTargets){
-						//System.out.println("Instructions " + target.val1.get(0).getIndex() + " - " + target.val1.get(target.val1.size() - 1).getIndex() + " = " + target.val2);
-					
-						replace(mn.instructions, target.val1, getConstantInstruction(target.val2));
-					}
-					numConstantsFolded += validTargets.size();
-					System.out.println("Folded " + validTargets.size() + " constants in " + dm.methodNodeToOwnerMap.get(mn).name + "." + mn.name + mn.desc);
-					mi.recompute();
-					//fix phi temporaries in ASMContentHandler$Rule.getAccess
-					/*
-					 * for each local index i set in block B after executing B
-					 * 		idom(B).mergeLocal(i);
-					 * 
-					 * 
-					 * when about to execute block B
-					 * 		locals = idom(B).locals.clone()
-					 * 
-					 * 
-					 * idom(B) represents the scope of the executing block
-					 * TODO
-					 */
-				}
+				if(addNew){
+					//System.out.println(T + " ==> " + "Instructions " + block.get(0).getIndex() + " - " + block.get(block.size() - 1).getIndex() + " = " + resolved);
 
+					validTargets.add(new Tuple<>(block, resolved));
+				}
 			}
+			if(validTargets.size() > 0){
+				for(Tuple<ArrayList<AbstractInsnNode>, Object> target : validTargets){
+					//System.out.println("Instructions " + target.val1.get(0).getIndex() + " - " + target.val1.get(target.val1.size() - 1).getIndex() + " = " + target.val2);
+
+					replace(mi.mn.instructions, target.val1, getConstantInstruction(target.val2));
+				}
+				numConstantsFolded += validTargets.size();
+				//System.out.println("Folded " + validTargets.size() + " constants in " + dm.methodNodeToOwnerMap.get(mn).name + "." + mn.name + mn.desc);
+				mi.recompute();
+			}
+
 		}
 		System.out.println("Folded " + numConstantsFolded + " constants.");
 	}

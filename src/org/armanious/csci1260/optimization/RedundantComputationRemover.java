@@ -3,11 +3,9 @@ package org.armanious.csci1260.optimization;
 import java.util.ArrayList;
 
 import org.armanious.csci1260.DataManager;
-import org.armanious.csci1260.DataManager.ConstantTemporary;
 import org.armanious.csci1260.DataManager.MethodInformation;
 import org.armanious.csci1260.DataManager.Temporary;
 import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.InsnNode;
@@ -33,8 +31,12 @@ public class RedundantComputationRemover {
 	}
 	
 	//TODO
-	//For each temporary T, if there is a temoprary in locals at the current block that equals T,
+	//For each temporary T, if there is a temporary in locals at the current block that equals T,
 	//replace T.getContiguousBlockSorted() with the correct VarInsnNode
+	
+	//TODO
+	//If there is a local variable LV that is initialized with a ConstantTemporary or other local
+	//variable and is not set again, remove LV and update code accordingly
 	public void optimize(){
 		for(ClassNode cn : dm.classes){
 			for(MethodNode mn : cn.methods){

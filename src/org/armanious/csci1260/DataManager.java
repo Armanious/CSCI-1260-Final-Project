@@ -23,6 +23,7 @@ import java.util.logging.Level;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 
+import org.armanious.csci1260.DataManager.Temporary;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
@@ -650,6 +651,22 @@ public class DataManager {
 			list.add(index);
 			//index.addCriticalTemporariesToList(list);
 		}
+		
+		//int[][][] arr = new int[100][200][300];
+		//arr.length = 100
+		//arr[i].length = 200
+		//arr[i][j].length = 300;
+		//we are handling arr[i].length, with arrayRef = arr (ArrayInstance), index = i
+		//and arr[i][j].length with arrayRef = arr[i] (ArrayReference), index = j
+		public Temporary attemptGetReferencedArrayLength(){
+			Temporary arrayInstance = arrayRef;
+			int dimensionToGetLengthOf = 0;
+			while(!(arrayInstance instanceof ArrayInstanceTemporary)){
+				arrayInstance = ((ArrayReferenceTemporary)arrayInstance).arrayRef;
+				dimensionToGetLengthOf++;
+			}
+			return ((ArrayInstanceTemporary)arrayInstance).dimensionCounts[dimensionToGetLengthOf];
+		}
 
 		@Override
 		protected Temporary clone() {
@@ -1007,7 +1024,7 @@ public class DataManager {
 	public static class ArrayInstanceTemporary extends Temporary {
 
 		private final Object fakeValue;
-		private final Temporary[] dimensionCounts;
+		public final Temporary[] dimensionCounts;
 
 		private static Type createArrayType(Type type, int numDimensions){
 			final StringBuilder sb = new StringBuilder();
@@ -1051,8 +1068,10 @@ public class DataManager {
 
 		@Override
 		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
-			for(int i = dimensionCounts.length - 1; i >= 0; i--){
-				dimensionCounts[i].addRelevantInstructionsToListSorted(list);
+			if(getDeclaration().getOpcode() == Opcodes.NEWARRAY || getDeclaration().getOpcode() == Opcodes.ANEWARRAY){
+				for(int i = dimensionCounts.length - 1; i >= 0; i--){
+					dimensionCounts[i].addRelevantInstructionsToListSorted(list);
+				}
 			}
 			list.add(getDeclaration());
 		}
@@ -1068,6 +1087,10 @@ public class DataManager {
 		@Override
 		protected Temporary clone() {
 			return new ArrayInstanceTemporary(fakeValue, getDeclaration(), getType(), dimensionCounts);
+		}
+
+		public Temporary getLengthTemporary() {
+			return dimensionCounts[0];
 		}
 
 	}
@@ -1465,8 +1488,8 @@ public class DataManager {
 	}
 
 	private static final Level DEFAULT_LOG_LEVEL = Level.FINE;
-	private static final String TO_DEBUG = null;//"test/hi/Hello.screwMeUp()V";
-			
+	private static final String TO_DEBUG = null;//"test/hi/Hello.fundamentalLoopTest(I)V";
+
 	private static final Logger log = Logger.getLogger("DataManager");
 	static {
 		log.setLevel(DEFAULT_LOG_LEVEL);
@@ -2463,17 +2486,11 @@ public class DataManager {
 
 			while(!toExecute.isEmpty()){
 				BasicBlock executingBlock = toExecute.removeFirst();
-				boolean executedAllPredecessors2 = true;
 				for(BlockEdge pred : executingBlock.predecessors){
-					if(!executed.contains(pred.b1)){
-						executedAllPredecessors2 = false;
-						System.err.println("FALSE");
-						System.err.println("Did not execute "  + pred.b1 + " before " + executingBlock);
+					if(pred.classification != BlockEdge.Classification.BACK && !executed.contains(pred.b1)){
+						System.err.println("Warning: did not execute "  + pred.b1 + " before " + executingBlock);
 						break;
 					}
-				}
-				if(!executedAllPredecessors2){
-					continue;
 				}
 
 				executed.add(executingBlock);
@@ -3248,20 +3265,20 @@ public class DataManager {
 
 						boolean executedAllPredecessors = true;
 						for(BlockEdge pred : successor.predecessors){
-							if(!executed.contains(pred.b1)){
+							if(pred.classification != BlockEdge.Classification.BACK && !executed.contains(pred.b1)){
 								executedAllPredecessors = false;
 								break;
 							}
 						}
-						
-						
+
+
 
 						mergeLocals(successor.locals, executingBlock.locals);
-						
-						
+
+
 						if(executedAllPredecessors){
 
-							
+
 
 							//successor.locals.clear();
 							//successor.locals.addAll(locals);

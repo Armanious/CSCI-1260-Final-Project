@@ -9,7 +9,6 @@ import java.util.Stack;
 import org.armanious.csci1260.DataManager;
 import org.armanious.csci1260.DataManager.ArrayReferenceTemporary;
 import org.armanious.csci1260.DataManager.BasicBlock;
-import org.armanious.csci1260.DataManager.BlockEdge;
 import org.armanious.csci1260.DataManager.FieldTemporary;
 import org.armanious.csci1260.DataManager.LoopEntry;
 import org.armanious.csci1260.DataManager.MethodInformation;
@@ -78,7 +77,7 @@ public class LoopOptimizations {
 		}
 		return true;
 	}
-	
+
 	private boolean isInvariant(MethodInformation mi, HashMap<Integer, LoopEntry> varianceMap, LoopEntry currentEntry, Temporary t){
 		if(t instanceof PhiTemporary){
 			return false;
@@ -90,23 +89,27 @@ public class LoopOptimizations {
 		if(t instanceof FieldTemporary && ((FieldTemporary)t).isVolatile()){
 			return false;
 		}
-		if(t.getContiguousBlockSorted() == null) return false;
-		if((t.getDeclaration().getOpcode() >= Opcodes.IASTORE && t.getDeclaration().getOpcode() <= Opcodes.SASTORE) ||
-				(t.getDeclaration().getOpcode() >= Opcodes.ILOAD && t.getDeclaration().getOpcode() <= Opcodes.ALOAD)){
+		if(t.getContiguousBlockSorted() == null){
+			//System.err.println("Ruling out invariance: " + t + " at instruction " + t.getDeclaration().getIndex() + " (" + Textifier.OPCODES[t.getDeclaration().getOpcode()] + ")");
 			return false;
 		}
-		if(t.getDeclaration() instanceof VarInsnNode && 
-				(!isVarInsnInvariant(varianceMap, currentEntry, (VarInsnNode)t.getDeclaration()))){
-			//|| t.getDeclaration().getOpcode() >= Opcodes.ILOAD && t.getDeclaration().getOpcode() <= Opcodes.ILOAD)){
+		if((t.getDeclaration().getOpcode() >= Opcodes.IASTORE && t.getDeclaration().getOpcode() <= Opcodes.SASTORE)){// ||
+			//(t.getDeclaration().getOpcode() >= Opcodes.ILOAD && t.getDeclaration().getOpcode() <= Opcodes.ALOAD)){
 			return false;
+		}
+		if(t.getDeclaration() instanceof VarInsnNode){
+			return isVarInsnInvariant(varianceMap, currentEntry, (VarInsnNode)t.getDeclaration());
 		}
 		ArrayList<Temporary> criticalTemporaries = t.getCriticalTemporaries();
 		if(criticalTemporaries == null || criticalTemporaries.size() == 0) return false;
 		for(Temporary critTemp : criticalTemporaries){
-			final AbstractInsnNode ain = critTemp.getDeclaration();
-			if(ain == null || !(ain instanceof VarInsnNode) || !isVarInsnInvariant(varianceMap, currentEntry, (VarInsnNode)ain)){
+			if(!isInvariant(mi, varianceMap, currentEntry, critTemp)){
 				return false;
 			}
+			/*final AbstractInsnNode ain = critTemp.getDeclaration();
+			if(ain == null || (ain instanceof VarInsnNode && !isVarInsnInvariant(varianceMap, currentEntry, (VarInsnNode)ain))){
+				return false;
+			}*/
 		}
 		return true;
 	}
@@ -158,7 +161,7 @@ public class LoopOptimizations {
 	public void optimize(){
 		int numLoopInvariants = 0;
 		for(MethodInformation mi : dm.methodInformations.values()){
-			//if(!mi.mn.name.equals("fundamentalLoopTest")) continue;
+			//if(!mi.mn.name.equals("loopTest")) continue;
 			//System.out.println("\n" + mi.mn.name);
 			int startingNumLoopInvariants = numLoopInvariants;
 
@@ -190,8 +193,8 @@ public class LoopOptimizations {
 				while(!toAnalyze.isEmpty()){
 					LoopEntry entry = toAnalyze.pop();
 					for(BasicBlock block : entry.blocksInLoop){
-						if(!searched.add(block)) continue; //ensures that we analyze only 
-						//the blocks that are not part of any inner loops
+						if(!searched.add(block)) continue; //ensures that we don't reanalyze
+						//blocks of inner loops (current block's loopentry's children's blocks)
 						Iterator<AbstractInsnNode> iter = block.instructionIteratorForward();
 						while(iter.hasNext()){
 							AbstractInsnNode ain = iter.next();
@@ -245,8 +248,7 @@ public class LoopOptimizations {
 					}
 				}
 
-
-				//System.out.println(mi.mn.name + " variantLocals: " + variantLocals);
+				System.out.println(mi.mn.name + " variantLocals: " + variantLocals);
 
 				searched.clear();
 				toAnalyze = toAnalyzeClone;
@@ -261,19 +263,31 @@ public class LoopOptimizations {
 						Iterator<AbstractInsnNode> iter = block.instructionIteratorForward();
 						while(iter.hasNext()){
 							AbstractInsnNode ain = iter.next();
+							if(ain.getOpcode() == -1) continue;
+							//System.out.println(Textifier.OPCODES[ain.getOpcode()]);
 							Temporary t = mi.temporaries.get(ain);
 							if(t == null) continue;
 							//System.out.println("Instruction " + ain.getIndex() + ": " + Textifier.OPCODES[ain.getOpcode()] + " -> " + t);
 							if(isInvariant(mi, variantLocals, entry, t)){
 								//System.out.println("Instruction " + ain.getIndex() + ": " + Textifier.OPCODES[ain.getOpcode()] + " -> " + t);
 
+								
 								ArrayList<Temporary> list = invariantTemporaries.get(entry);
 								if(list == null){
 									list = new ArrayList<>();
 									invariantTemporaries.put(entry, list);
+									list.add(t);
+								}else{
+									for(Temporary otherInvariant : list){
+										if(otherInvariant.getCriticalTemporaries().contains(t)){
+											break;
+										}
+									}
+									list.add(t);
+									for(Temporary crit : t.getCriticalTemporaries()){
+										list.remove(crit);
+									}
 								}
-								list.add(t);
-
 							}
 
 						}
