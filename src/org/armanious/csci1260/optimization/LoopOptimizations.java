@@ -51,7 +51,7 @@ public class LoopOptimizations {
 		return block;
 	}
 
-	private Temporary resolvePrematurePhiTemporary(PhiTemporary pt){
+	/*private Temporary resolvePrematurePhiTemporary(PhiTemporary pt){
 		boolean nullIsOnlyBackEdges = true;
 		int nonNullIndex = -1;
 		for(int i = 0; i < pt.mergedTemporaries.length && nullIsOnlyBackEdges; i++){
@@ -69,7 +69,7 @@ public class LoopOptimizations {
 			return pt.mergedTemporaries[nonNullIndex].cloneOnInstruction(pt.getDeclaration());
 		}
 		return pt;
-	}
+	}*/
 
 	private boolean isVarInsnInvariant(HashMap<Integer, LoopEntry> varianceMap, LoopEntry currentEntry, VarInsnNode vin){
 		final LoopEntry loop = varianceMap.get(vin.var);
@@ -78,10 +78,11 @@ public class LoopOptimizations {
 		}
 		return true;
 	}
-
+	
 	private boolean isInvariant(MethodInformation mi, HashMap<Integer, LoopEntry> varianceMap, LoopEntry currentEntry, Temporary t){
 		if(t instanceof PhiTemporary){
-			t = resolvePrematurePhiTemporary((PhiTemporary)t);
+			return false;
+			//t = resolvePrematurePhiTemporary((PhiTemporary)t);
 		}
 		if(t instanceof MethodInvocationTemporary && ((MethodInvocationTemporary)t).hasSideEffects()){
 			return false;
@@ -219,7 +220,8 @@ public class LoopOptimizations {
 								//t is the arrayref of the store
 								//it could be a "premature" Phi tho
 								if(t instanceof PhiTemporary){
-									t = resolvePrematurePhiTemporary((PhiTemporary)t);
+									break;
+									//t = resolvePrematurePhiTemporary((PhiTemporary)t);
 								}
 								if(t instanceof ArrayReferenceTemporary){ //i.e. no longer Phi
 									ArrayReferenceTemporary art = (ArrayReferenceTemporary) mi.temporaries.get(ain);

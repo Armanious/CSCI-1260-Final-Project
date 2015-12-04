@@ -32,9 +32,6 @@ import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.IntInsnNode;
 import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodNode;
-import org.objectweb.asm.util.Textifier;
-import org.objectweb.asm.util.TraceMethodVisitor;
-import org.objectweb.asm.xml.ASMContentHandler;
 
 public class ConstantFolder {
 
@@ -489,32 +486,29 @@ public class ConstantFolder {
 					Object resolved = resolve(T);
 					if(resolved == null) continue;
 					//System.out.println("Working with constant at instruction " + T.getDeclaration().getIndex() + " (" + T + " == " + resolved + ")");
-
-					//TODO make it a binary search-based insert instead of
-					//randomly inserting;
-					//TODO even better check for collisions; if found, fg
+					
 					boolean addNew = true;
 					for(int i = 0; i < validTargets.size(); i++){
-						int block2start = validTargets.get(i).val1.get(0).getIndex();
-						int block2end = validTargets.get(i).val1.get(validTargets.get(i).val1.size() - 1).getIndex();
-						if(block2start > blockEnd || blockStart > block2end){
+						int storedBlockStart = validTargets.get(i).val1.get(0).getIndex();
+						int storedBlockEnd = validTargets.get(i).val1.get(validTargets.get(i).val1.size() - 1).getIndex();
+						if(storedBlockStart > blockEnd || blockStart > storedBlockEnd){
 							//no intersection; add as we should
 							//addNew = true
-						}else if(block2start >= blockStart && block2end <= blockEnd){
+						}else if(storedBlockStart >= blockStart && storedBlockEnd <= blockEnd){
 							//block2 is smaller (theoretically can be equal, but we will never
 							//have a Temporary with identical instruction lists
 							//replace block2 with block
-							System.out.println(T + " ==> " + "Instructions " + block.get(0).getIndex() + " - " + block.get(block.size() - 1).getIndex() + " = " + resolved);
+							System.out.println("REPLACING; " + T + " ==> " + "Instructions " + block.get(0).getIndex() + " - " + block.get(block.size() - 1).getIndex() + " = " + resolved);
 							
 							validTargets.set(i, new Tuple<>(block, resolved));
 							addNew = false;
 							break;
-						}else if(blockStart >= block2start && blockEnd <= block2end){
+						}else if(blockStart >= storedBlockStart && blockEnd <= storedBlockEnd){
 							//block2 is greater than the block we are evaluating
 							//do nothing
 							addNew = false;
 						}else{
-							System.out.println("Currently stored: " + block2start + " - " + block2end);
+							System.out.println("Currently stored: " + storedBlockStart + " - " + storedBlockEnd);
 							System.out.println("Comparing against: " + blockStart + " - " + blockEnd);
 							System.out.println();
 						}
@@ -522,11 +516,15 @@ public class ConstantFolder {
 					if(addNew){
 						System.out.println(T + " ==> " + "Instructions " + block.get(0).getIndex() + " - " + block.get(block.size() - 1).getIndex() + " = " + resolved);
 					
+						//System.out.println(T + " ==> " + "Instructions " + block.get(0).getIndex() + " - " + block.get(block.size() - 1).getIndex() + " = " + resolved);
+					
 						validTargets.add(new Tuple<>(block, resolved));
 					}
 				}
 				if(validTargets.size() > 0){
 					for(Tuple<ArrayList<AbstractInsnNode>, Object> target : validTargets){
+						//System.out.println("Instructions " + target.val1.get(0).getIndex() + " - " + target.val1.get(target.val1.size() - 1).getIndex() + " = " + target.val2);
+					
 						replace(mn.instructions, target.val1, getConstantInstruction(target.val2));
 					}
 					numConstantsFolded += validTargets.size();

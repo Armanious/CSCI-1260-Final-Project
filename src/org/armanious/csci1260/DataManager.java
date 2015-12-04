@@ -97,7 +97,7 @@ public class DataManager {
 		private AbstractInsnNode declaration;
 
 		public Map<AbstractInsnNode, MethodNode> references; 
-		
+
 		private boolean overrideConstancy = false;
 		private int forcedConstancy = Integer.MAX_VALUE;
 
@@ -107,15 +107,15 @@ public class DataManager {
 			index = numTemporaries++;
 			GLOBAL_TEMPORARIES.add(this);
 		}
-		
+
 		int getConstancyInternal(){
 			return CONSTANCY_UNKNOWN;
 		}
-		
+
 		public final int getConstancy(){
 			return overrideConstancy ? forcedConstancy : getConstancyInternal();
 		}
-		
+
 		public final void forceConstancy(int forcedConstancy){
 			overrideConstancy = true;
 			this.forcedConstancy = forcedConstancy;
@@ -596,21 +596,7 @@ public class DataManager {
 	public static class ArrayReferenceTemporary extends Temporary {
 
 		private static Type computeArrayDereferenceType(Temporary arrayRef){
-			if(arrayRef instanceof ArrayInstanceTemporary){
-				ArrayInstanceTemporary ait = (ArrayInstanceTemporary) arrayRef;
-				int dims = ait.dimensionCounts.length;
-				StringBuilder sb = new StringBuilder(ait.getType().toString());
-				for(int i = 1; i < dims; i++){
-					sb.insert(0, '[');
-				}
-				return Type.getType(sb.toString());
-			}
-			try{
-				return Type.getType(arrayRef.getType().toString().substring(1));
-			}catch(Exception e){
-				e.printStackTrace();
-				return Type.getType(arrayRef.getType().getInternalName().substring(1));
-			}
+			return Type.getType(arrayRef.getType().getDescriptor().substring(1));
 		}
 
 		public final Temporary arrayRef;
@@ -1213,20 +1199,17 @@ public class DataManager {
 
 		public final Temporary[] mergedTemporaries;
 		public final int index;
-		public final BasicBlock initialBlock;
 
-		public PhiTemporary(Temporary[] toMerge, int index, Type knownType, BasicBlock block) {
+		public PhiTemporary(Temporary[] toMerge, int index, Type knownType) {
 			super(null, knownType);
 			this.mergedTemporaries = toMerge;
 			this.index = index;
-			this.initialBlock = block;
 		}
 
-		public PhiTemporary(Temporary[] toMerge, int index, BasicBlock block) {
+		public PhiTemporary(Temporary[] toMerge, int index) {
 			super(null, getCommonSuperType(toMerge));
 			this.mergedTemporaries = toMerge;
 			this.index = index;
-			this.initialBlock = block;
 		}
 
 		@Override
@@ -1268,7 +1251,7 @@ public class DataManager {
 
 		@Override
 		protected Temporary clone() {
-			return new PhiTemporary(mergedTemporaries, index, getType(), initialBlock);
+			return new PhiTemporary(mergedTemporaries, index, getType());
 		}
 
 	}
@@ -1375,7 +1358,7 @@ public class DataManager {
 		public final Set<BasicBlock> dominates = new HashSet<>();
 
 		public JavaStack stackAtStart;// = new Stack<>();
-		public final ArrayList<Temporary> localsAtStart = new ArrayList<>();
+		public final ArrayList<Temporary> locals = new ArrayList<>();
 		//public final ArrayList<Temporary> localsAtStart = new ArrayList<>();
 		public final HashMap<AbstractInsnNode, Tuple<Temporary[], Temporary>> operandsAndResultPerInsn = new HashMap<>();
 		public final HashMap<Integer, Temporary> localsSetInBlock = new HashMap<>();
@@ -1436,11 +1419,7 @@ public class DataManager {
 		}
 
 		public String toString(){
-			if(firstInsnInBlock != null){
-				return "B-" + String.valueOf(firstInsnInBlock.getIndex());
-			}else{
-				return "Unique Entry";
-			}
+			return "B" + String.valueOf(firstInsnInBlock.getIndex()) + "-" + String.valueOf(lastInsnInBlock.getIndex());
 		}
 
 	}
@@ -1465,7 +1444,7 @@ public class DataManager {
 	}
 
 	private static final Level DEFAULT_LOG_LEVEL = Level.FINE;
-	private static final String TO_DEBUG = "org/armanious/makkar/Camper.loadFromLine(Ljava/lang/String;)Lorg/armanious/makkar/Camper;";
+	private static final String TO_DEBUG = null;//"org/armanious/csci1260/DataManager$MethodInformation.computeLoopGraph()V";//"org/armanious/csci1260/DataManager$MethodInformation.getFieldTemporary(Lorg/objectweb/asm/tree/AbstractInsnNode;Lorg/objectweb/asm/tree/MethodNode;Lorg/armanious/csci1260/DataManager$Temporary;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lorg/armanious/csci1260/DataManager$Temporary;)Lorg/armanious/csci1260/DataManager$FieldTemporary;";
 
 	private static final Logger log = Logger.getLogger("DataManager");
 	static {
@@ -1624,7 +1603,7 @@ public class DataManager {
 		}
 
 		private void printGraph(){
-			mn.instructions.get(0);
+			//mn.instructions.get(0);
 			Stack<BasicBlock> stack = new Stack<>();
 			HashSet<BasicBlock> searched = new HashSet<>();
 			stack.add(getFirstBlock());
@@ -1668,18 +1647,17 @@ public class DataManager {
 			temporaries.clear();
 			temporariesRead.clear();
 			fieldsWritten.clear();
-			mn.instructions.get(0);
 
 			mn.instructions.get(0);
-
 			computeGraph();
+			mn.instructions.get(0);
 			//computeFieldReadWriteInfo();
 
 			labelEdgesDepthFirst();
 
 			//omputeiDominanceNew();
-			computeDominance();
-			computeiDominance();
+			//computeDominance();
+			//computeiDominance();
 			computeChildren();
 
 
@@ -1756,7 +1734,7 @@ public class DataManager {
 			//assumed that b1 is known, as it is the curBlock local variable from the computeGraph()
 			BasicBlock b1 = getBlockFromInstruction(b1Delimeter);
 			BasicBlock b2 = getBlockFromInstruction(b2Delimeter);
-
+			
 			BlockEdge edge = new BlockEdge(type, null, b1, b2);
 			if(b1.successors.stream().anyMatch((b)->b.type == type)){
 				mn.instructions.get(0);//build cache for meaningful output
@@ -1780,9 +1758,11 @@ public class DataManager {
 		private void computeGraph(){
 			mn.instructions.insert(new LabelNode(new Label()));
 			mn.instructions.add(new LabelNode(new Label()));
+			mn.instructions.get(0);
 
 			AbstractInsnNode curBlockDelimeter = null;
 			for(AbstractInsnNode ain = mn.instructions.getFirst(); ain != null; ain = ain.getNext()){
+				int index = ain.getIndex();
 				if(curBlockDelimeter == null){
 					curBlockDelimeter = ain;
 				}else{
@@ -1809,6 +1789,19 @@ public class DataManager {
 				}
 			}
 		}
+		
+		private void printBlock(BasicBlock b){
+			System.out.println(b);
+			Textifier t = new Textifier();
+			mn.accept(new TraceMethodVisitor(t));
+			mn.instructions.get(0);
+			Iterator<AbstractInsnNode> iter = b.instructionIteratorForward();
+			while(iter.hasNext()){
+				int op = iter.next().getOpcode();
+				if(op != -1)
+					System.out.println('\t' + Textifier.OPCODES[op]);//t.text.get(iter.next().getIndex()));
+			}
+		}
 
 		private void labelEdgesDepthFirst(){
 			pre = new int[blocks.size()];
@@ -1816,13 +1809,38 @@ public class DataManager {
 			precount = 0;
 			postcount = blocks.size() + 1;
 
+			iDominanceMap.put(getLastBlock(), null);
 			dfs(getFirstBlock());
+			
+			/*if(iDominanceMap.size() + 1 != blocks.size()){
+			  Java compiler VERY often generate unreacahble bytecode? Especially the eclipse compiler
+			 
+				mn.instructions.get(0);
+				System.err.println("Warning: unreachable blocks:");
+				blocks.values().stream().filter((b) -> !iDominanceMap.containsKey(b) && b != getFirstBlock() && b != getLastBlock()).forEach(MethodInformation.this::printBlock);
+				System.out.println();
+			}*/
+			
 		}
 
 		private int[] pre;
 		private int[] post;
 		private int precount;
 		private int postcount;
+
+		private BasicBlock ancestor(BasicBlock b1, BasicBlock b2){
+			BasicBlock initialB1 = b1;
+			BasicBlock initialB2 = b2;
+			while(b1 != null && b1 != b2){
+				b2 = initialB2;
+				while(b2 != null && b1 != b2){
+					b2 = iDominanceMap.get(b2);
+				}
+				if(b1 == b2) break;
+				b1 = iDominanceMap.get(b1);
+			}
+			return b1; //b1 == b2
+		}
 
 		private void dfs(BasicBlock b){
 			if(b == null){
@@ -1834,13 +1852,17 @@ public class DataManager {
 				BasicBlock s = e.b2;
 				if(pre[s.index] == 0){
 					e.classification = BlockEdge.Classification.TREE;
+					iDominanceMap.put(s, b);
 					dfs(s);
 				}else if(post[s.index] == 0){
 					e.classification = BlockEdge.Classification.BACK;
+					//ignore iDominance; no effect
 				}else if(pre[b.index] < pre[s.index]){
 					e.classification = BlockEdge.Classification.FORWARD;
+					iDominanceMap.put(s, ancestor(iDominanceMap.get(s), iDominanceMap.get(b)));
 				}else{
 					e.classification = BlockEdge.Classification.CROSS;
+					iDominanceMap.put(s, ancestor(iDominanceMap.get(s), iDominanceMap.get(b)));
 				}
 			}
 			post[b.index] = postcount--;
@@ -2068,7 +2090,7 @@ public class DataManager {
 			return b1;
 		}*/
 
-		private void computeDominance(){
+		private void computeDominanceLegacy2(){
 			try{
 				Stack<BasicBlock> worklist = new Stack<>();
 				worklist.add(getFirstBlock());
@@ -2077,7 +2099,9 @@ public class DataManager {
 				working:
 					while(!worklist.isEmpty()){
 						BasicBlock workingWith = worklist.pop();
-
+						if(workingWith.toString().equals("B-49")){
+							System.out.println("walk with me");
+						}
 						Set<BasicBlock> blocksDominatingCurrent = dominanceMap.get(workingWith);
 						if(blocksDominatingCurrent == null){
 							blocksDominatingCurrent = new HashSet<>();
@@ -2087,6 +2111,8 @@ public class DataManager {
 
 						tempSet.clear();
 						for(BlockEdge edgeToThis : workingWith.predecessors){
+							if(edgeToThis.classification == BlockEdge.Classification.BACK)
+								continue;
 							BasicBlock predecessor = edgeToThis.b1;
 							if(dominanceMap.get(predecessor) == null){
 								worklist.push(workingWith);
@@ -2102,6 +2128,9 @@ public class DataManager {
 						}
 						blocksDominatingCurrent.addAll(tempSet);
 						for(BlockEdge successor : workingWith.successors){
+							if(successor.b2.toString().equals("B-30")){
+								System.err.println("walk with me 2");
+							}
 							if(dominanceMap.get(successor.b2) == null){
 								worklist.push(successor.b2);
 							}
@@ -2169,7 +2198,7 @@ public class DataManager {
 			}
 		}
 
-		private void computeiDominance(){
+		private void computeiDominanceLegacy(){
 			try{
 				BasicBlock R = getFirstBlock();
 
@@ -2205,7 +2234,10 @@ public class DataManager {
 				for(BasicBlock N : blocks.values()){
 					if(N != R){
 						Set<BasicBlock> set = idom.get(N);
-						if(set == null || set.size() == 0) continue;
+						if(set == null || set.size() == 0){
+							System.err.println("Error calculating immediate dominator for " + N);
+							continue;
+						}
 						iDominanceMap.put(N, (BasicBlock) set.toArray()[0]);
 					}
 				}
@@ -2236,8 +2268,8 @@ public class DataManager {
 			for(BasicBlock B : blocks.values()){
 				BasicBlock C = iDominanceMap.get(B);
 				if(C != null){
-					
-					
+
+
 					Set<BasicBlock> children = childrenMap.get(C);
 					if(children == null){
 						children = new HashSet<>();
@@ -2274,7 +2306,7 @@ public class DataManager {
 				//TODO FIXME I don't know if this works!
 			}*/
 		//}
-		
+
 		private JavaStack mergeStacksAndClone(JavaStack prev, JavaStack toMerge){
 			if(prev == null || prev.size() == 0) return toMerge.clone();
 			if(toMerge == null || toMerge.size() == 0) return prev.clone();
@@ -2357,10 +2389,48 @@ public class DataManager {
 			return instance.cloneSpecialCase(instruction, mn, toStore);
 		}
 
+		private void assignLocalToParent(BasicBlock parent, int index, Temporary toStoreInParent){
+			final Temporary parentsCurrentValue = parent.locals.get(index);
+			if(parentsCurrentValue == null){
+
+			}else{
+				//toStore = merge(parent.locals.get(i), toStore);
+				if(parentsCurrentValue.equals(toStoreInParent)){
+					//it's already set to the same value; we don't even need to propagate the
+					//assignment; just return
+					return;
+				}else{
+					if(parentsCurrentValue instanceof PhiTemporary){
+						PhiTemporary parentPhi = (PhiTemporary) parentsCurrentValue;
+						Temporary[] newPhiMerged = new Temporary[parentPhi.mergedTemporaries.length + 1];
+						System.arraycopy(parentPhi.mergedTemporaries, 0, newPhiMerged, 0, parentPhi.mergedTemporaries.length);
+						newPhiMerged[newPhiMerged.length - 1] = toStoreInParent;
+
+						toStoreInParent = new PhiTemporary(newPhiMerged, index);
+					}else{
+						toStoreInParent = new PhiTemporary(new Temporary[]{parentsCurrentValue, toStoreInParent}, index);
+					}
+				}
+			}
+			parent.locals.set(index, toStoreInParent);
+			log.finest("Assigning " + parent + ".locals[" + index + "] = " + toStoreInParent);
+
+			BasicBlock propagatingTo = iDominanceMap.get(parent);
+			if(propagatingTo != null){
+				assignLocalToParent(propagatingTo, index, toStoreInParent);
+			}else if(parent.getFirstInsnInBlock().getIndex() != 0){
+				//log.setLevel(Level.FINEST);
+				//printGraph();
+				//System.err.println(MethodInformation.this.dominanceMap);
+				//System.err.println(MethodInformation.this.iDominanceMap);
+				System.err.println(parent + " does not have a valid parent!!!!!");
+			}
+		}
+
 		private void doSymbolicExecution(){
 			if(Modifier.isAbstract(mn.access) || Modifier.isNative(mn.access)) return;
 			log.finest("Symbolically executing");
-			
+
 
 			LinkedList<BasicBlock> toExecute = new LinkedList<>();
 			Set<BasicBlock> executed = new HashSet<>();
@@ -2389,13 +2459,13 @@ public class DataManager {
 			}
 
 			for(int i = 0; i < locals.size(); i++){
-				getFirstBlock().localsAtStart.add(locals.get(i));
+				getFirstBlock().locals.add(locals.get(i));
 				getFirstBlock().localsSetInBlock.put(i, locals.get(i));
 			}
 
 			for(BasicBlock block : blocks.values()){
-				block.localsAtStart.clear();
-				block.localsAtStart.addAll(locals);
+				block.locals.clear();
+				block.locals.addAll(locals);
 			}
 
 			log.finest("Locals before first instruction: " + locals);
@@ -2413,15 +2483,21 @@ public class DataManager {
 
 				if(executingBlock.stackAtStart != null){
 					stack = executingBlock.stackAtStart;
-					//temporariesStack.clear();
-					//temporariesStack.addAll(executingBlock.stackAtStart);
-				}
-				if(executingBlock.localsAtStart != null){
-					locals.clear();
-					locals.addAll(executingBlock.localsAtStart);
+
 				}
 
-				int numEdgesToThis = executingBlock.predecessors.size();
+				BasicBlock parent = iDominanceMap.get(executingBlock);
+				locals = executingBlock.locals;
+				if(parent != null){
+					//locals = parent.locals;
+					//locals.clear();
+					//locals.addAll(iDominanceMap.get(executingBlock).locals);
+					//locals = idom(cur).locals
+
+					//locals.addAll(executingBlock.locals);
+				}
+
+				/*int numEdgesToThis = executingBlock.predecessors.size();
 				if(numEdgesToThis > 1){
 					for(int i = 0; i < locals.size(); i++){
 						Temporary[] toMerge = new Temporary[numEdgesToThis];
@@ -2451,7 +2527,7 @@ public class DataManager {
 
 					}
 				}
-				//TODO merge locals from predecessors
+				//TODO merge locals from predecessors*/
 
 
 				log.finest("Executing block " + executingBlock);
@@ -2463,11 +2539,7 @@ public class DataManager {
 				//execute
 				final Iterator<AbstractInsnNode> insnsOfBlock = executingBlock.instructionIteratorForward();
 				AbstractInsnNode executingInstruction = null;
-				
-				if(executingBlock.toString().equals("B-33") && mn.name.equals("loadFromLine")){
-					System.out.println("aqui");
-				}
-				
+
 				try{
 					while(insnsOfBlock.hasNext()){
 						executingInstruction = insnsOfBlock.next();
@@ -2597,9 +2669,14 @@ public class DataManager {
 							popped = new Temporary[1];
 							Temporary valueToStore = popped[0] = stack.pop();
 							valueToStore.addReference(executingInstruction, mn);
+
+							valueToStore = valueToStore.cloneOnInstruction(executingInstruction);
 							locals.set(vvi.var, valueToStore);
+							if(parent != null){
+								assignLocalToParent(parent, vvi.var, valueToStore);
+							}
 							executingBlock.localsSetInBlock.put(vvi.var, locals.get(vvi.var));
-							temporaries.put(executingInstruction, valueToStore.cloneOnInstruction(executingInstruction));
+							temporaries.put(executingInstruction, valueToStore);
 							//addToTemporariesWritten(executingBlock, valueToStore);
 							break;
 						case IASTORE:
@@ -3114,7 +3191,7 @@ public class DataManager {
 					for(int i = 0; i < textifier.text.size(); i++){
 						//errorMessage.append(i).append(": ").append(textifier.text.get(i));
 					}
-					//log.severe(errorMessage.toString());
+					log.severe(errorMessage.toString());
 					return;
 				}
 
@@ -3128,7 +3205,7 @@ public class DataManager {
 				log.finest("Locals at end of " + executingBlock + ": " + locals);
 
 				Set<BasicBlock> children = childrenMap.get(executingBlock);
-				
+
 				/*if(children != null){
 					for(BasicBlock child : children){
 						child.stackAtStart = mergeStacksAndClone(child.stackAtStart, stack);
@@ -3146,8 +3223,8 @@ public class DataManager {
 				for(BlockEdge edge : executingBlock.successors){
 					BasicBlock successor = edge.b2;
 					if(!executed.contains(successor)){
-						successor.localsAtStart.clear();
-						successor.localsAtStart.addAll(locals);
+						successor.locals.clear();
+						successor.locals.addAll(locals);
 						successor.stackAtStart = mergeStacksAndClone(successor.stackAtStart, stack);
 						if(!toExecute.contains(successor)){
 							toExecute.add(successor);
