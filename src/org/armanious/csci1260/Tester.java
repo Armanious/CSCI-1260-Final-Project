@@ -9,7 +9,7 @@ public class Tester {
 		System.out.println("IM HERE");
 		//final String PROGRAM_TO_TEST_ON = "CSCI 1260 Tests";
 		//File f = new File(new File(System.getProperty("user.dir")).getParentFile(), PROGRAM_TO_TEST_ON + File.separator + "bin");
-		File f = new File("/Users/david/OneDrive/Documents/workspace/CSCI 1260 Tests/bin");
+		File f = new File("/Users/david/OneDrive/Documents/workspace/CSCI 1260 Final Project/bin");
 		String[] args = new String[]{f.toString(), 
 				"run_output=false",
 				"obfuscation.compress_output=false",

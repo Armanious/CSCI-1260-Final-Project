@@ -91,6 +91,8 @@ public class DataManager {
 		public static final int CONSTANCY_UNKNOWN = 0;
 		public static final int CONSTANT = 1;
 
+		private Temporary parentTemporary = null;
+
 		public final int index;
 		public final Type type;
 
@@ -113,12 +115,16 @@ public class DataManager {
 		}
 
 		public final int getConstancy(){
-			return overrideConstancy ? forcedConstancy : getConstancyInternal();
+			return parentTemporary != null ? parentTemporary.getConstancy() : (overrideConstancy ? forcedConstancy : getConstancyInternal());
 		}
 
 		public final void forceConstancy(int forcedConstancy){
-			overrideConstancy = true;
-			this.forcedConstancy = forcedConstancy;
+			if(parentTemporary == null){
+				overrideConstancy = true;
+				this.forcedConstancy = forcedConstancy;
+			}else{
+				parentTemporary.forceConstancy(forcedConstancy);
+			}
 		}
 
 		protected static int mergeConstancy(Temporary...others){
@@ -162,6 +168,7 @@ public class DataManager {
 
 		public final Temporary cloneOnInstruction(AbstractInsnNode ain){
 			Temporary t = clone();
+			t.parentTemporary = parentTemporary == null ? this : parentTemporary;
 			t.declaration = ain;
 			return t;
 		}
@@ -535,7 +542,7 @@ public class DataManager {
 			if(value instanceof String){
 				return "\"" + ((String)value) + "\"";
 			}
-			return String.valueOf(value);
+			return value == null ? "ConstantNull" : String.valueOf(value);
 		}
 
 		public Object getValue(){
@@ -604,6 +611,9 @@ public class DataManager {
 
 		public ArrayReferenceTemporary(AbstractInsnNode decl, Temporary arrayRef, Temporary index) {
 			super(decl, computeArrayDereferenceType(arrayRef));
+			if(arrayRef instanceof ConstantTemporary && ((ConstantTemporary)arrayRef).value == null){
+				System.err.println("bpp");
+			}
 			this.arrayRef = arrayRef;
 			this.index = index;
 			arrayRef.addReference(decl, null);
@@ -670,7 +680,9 @@ public class DataManager {
 		private final int arithmeticType;
 
 
-		private static Type determineType(Type lhs, Type rhs){
+		private static Type determineType(Temporary lhst, Temporary rhst){
+			Type lhs = lhst.getType();
+			Type rhs = rhst.getType();
 			if(lhs == rhs){
 				return lhs;
 			}else if(lhs == Type.BYTE_TYPE || lhs == Type.SHORT_TYPE || lhs == Type.CHAR_TYPE || lhs == Type.BOOLEAN_TYPE){
@@ -686,7 +698,7 @@ public class DataManager {
 		}
 
 		public BinaryOperatorTemporary(AbstractInsnNode decl, Temporary rhs, Temporary lhs, int arithmeticType) {
-			super(decl, determineType(lhs.getType(), rhs.getType()));
+			super(decl, determineType(lhs, rhs));
 			this.rhs = rhs;
 			this.lhs = lhs;
 			this.arithmeticType = arithmeticType;
@@ -1156,6 +1168,14 @@ public class DataManager {
 	public Type getCommonSuperType(Type t1, Type t2){
 		if(t1.equals(t2)){
 			return t1;
+		}else if(t1 == Type.INT_TYPE){
+			if(t2 == Type.BYTE_TYPE || t2 == Type.SHORT_TYPE || t2 == Type.CHAR_TYPE || t2 == Type.BOOLEAN_TYPE){
+				return Type.INT_TYPE;
+			}
+		}else if(t2 == Type.INT_TYPE){
+			if(t1 == Type.BYTE_TYPE || t1 == Type.SHORT_TYPE || t1 == Type.CHAR_TYPE || t1 == Type.BOOLEAN_TYPE){
+				return Type.INT_TYPE;
+			}
 		}
 		if(t1.getSort() != t2.getSort() || 
 				t1.getSort() == Type.ARRAY){
@@ -1182,6 +1202,9 @@ public class DataManager {
 	private Type getCommonSuperType(Temporary[] temps){
 		Type t = null;
 		for(int i = 0; i < temps.length; i++){
+			if(temps[i] instanceof ConstantTemporary && ((ConstantTemporary)temps[i]).value == null){
+				continue;
+			}
 			if(t == null){
 				if(temps[i] != null){
 					t = temps[i].getType();
@@ -1207,9 +1230,7 @@ public class DataManager {
 		}
 
 		public PhiTemporary(Temporary[] toMerge, int index) {
-			super(null, getCommonSuperType(toMerge));
-			this.mergedTemporaries = toMerge;
-			this.index = index;
+			this(toMerge, index, getCommonSuperType(toMerge));
 		}
 
 		@Override
@@ -1444,8 +1465,8 @@ public class DataManager {
 	}
 
 	private static final Level DEFAULT_LOG_LEVEL = Level.FINE;
-	private static final String TO_DEBUG = null;//"org/armanious/csci1260/DataManager$MethodInformation.computeLoopGraph()V";//"org/armanious/csci1260/DataManager$MethodInformation.getFieldTemporary(Lorg/objectweb/asm/tree/AbstractInsnNode;Lorg/objectweb/asm/tree/MethodNode;Lorg/armanious/csci1260/DataManager$Temporary;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lorg/armanious/csci1260/DataManager$Temporary;)Lorg/armanious/csci1260/DataManager$FieldTemporary;";
-
+	private static final String TO_DEBUG = null;//"test/hi/Hello.screwMeUp()V";
+			
 	private static final Logger log = Logger.getLogger("DataManager");
 	static {
 		log.setLevel(DEFAULT_LOG_LEVEL);
@@ -1623,6 +1644,7 @@ public class DataManager {
 			}
 		}
 		public void recompute(){
+
 			if(Modifier.isAbstract(mn.access) || Modifier.isNative(mn.access))
 				return;
 
@@ -1734,7 +1756,7 @@ public class DataManager {
 			//assumed that b1 is known, as it is the curBlock local variable from the computeGraph()
 			BasicBlock b1 = getBlockFromInstruction(b1Delimeter);
 			BasicBlock b2 = getBlockFromInstruction(b2Delimeter);
-			
+
 			BlockEdge edge = new BlockEdge(type, null, b1, b2);
 			if(b1.successors.stream().anyMatch((b)->b.type == type)){
 				mn.instructions.get(0);//build cache for meaningful output
@@ -1789,7 +1811,7 @@ public class DataManager {
 				}
 			}
 		}
-		
+
 		private void printBlock(BasicBlock b){
 			System.out.println(b);
 			Textifier t = new Textifier();
@@ -1811,16 +1833,16 @@ public class DataManager {
 
 			iDominanceMap.put(getLastBlock(), null);
 			dfs(getFirstBlock());
-			
+
 			/*if(iDominanceMap.size() + 1 != blocks.size()){
 			  Java compiler VERY often generate unreacahble bytecode? Especially the eclipse compiler
-			 
+
 				mn.instructions.get(0);
 				System.err.println("Warning: unreachable blocks:");
 				blocks.values().stream().filter((b) -> !iDominanceMap.containsKey(b) && b != getFirstBlock() && b != getLastBlock()).forEach(MethodInformation.this::printBlock);
 				System.out.println();
 			}*/
-			
+
 		}
 
 		private int[] pre;
@@ -2324,7 +2346,7 @@ public class DataManager {
 					//shallow equals is sufficient for virtually all merges
 					if(!toRet.elementAt(i).equals(prev.elementAt(i))){
 						//now they are actually not equal
-						toRet.set(i, new PhiTemporary(new Temporary[]{toRet.elementAt(i), prev.elementAt(i)}, -1, null), null);
+						toRet.set(i, new PhiTemporary(new Temporary[]{toRet.elementAt(i), prev.elementAt(i)}, -1), null);
 					}
 				}
 			}
@@ -2389,44 +2411,6 @@ public class DataManager {
 			return instance.cloneSpecialCase(instruction, mn, toStore);
 		}
 
-		private void assignLocalToParent(BasicBlock parent, int index, Temporary toStoreInParent){
-			final Temporary parentsCurrentValue = parent.locals.get(index);
-			if(parentsCurrentValue == null){
-
-			}else{
-				//toStore = merge(parent.locals.get(i), toStore);
-				if(parentsCurrentValue.equals(toStoreInParent)){
-					//it's already set to the same value; we don't even need to propagate the
-					//assignment; just return
-					return;
-				}else{
-					if(parentsCurrentValue instanceof PhiTemporary){
-						PhiTemporary parentPhi = (PhiTemporary) parentsCurrentValue;
-						Temporary[] newPhiMerged = new Temporary[parentPhi.mergedTemporaries.length + 1];
-						System.arraycopy(parentPhi.mergedTemporaries, 0, newPhiMerged, 0, parentPhi.mergedTemporaries.length);
-						newPhiMerged[newPhiMerged.length - 1] = toStoreInParent;
-
-						toStoreInParent = new PhiTemporary(newPhiMerged, index);
-					}else{
-						toStoreInParent = new PhiTemporary(new Temporary[]{parentsCurrentValue, toStoreInParent}, index);
-					}
-				}
-			}
-			parent.locals.set(index, toStoreInParent);
-			log.finest("Assigning " + parent + ".locals[" + index + "] = " + toStoreInParent);
-
-			BasicBlock propagatingTo = iDominanceMap.get(parent);
-			if(propagatingTo != null){
-				assignLocalToParent(propagatingTo, index, toStoreInParent);
-			}else if(parent.getFirstInsnInBlock().getIndex() != 0){
-				//log.setLevel(Level.FINEST);
-				//printGraph();
-				//System.err.println(MethodInformation.this.dominanceMap);
-				//System.err.println(MethodInformation.this.iDominanceMap);
-				System.err.println(parent + " does not have a valid parent!!!!!");
-			}
-		}
-
 		private void doSymbolicExecution(){
 			if(Modifier.isAbstract(mn.access) || Modifier.isNative(mn.access)) return;
 			log.finest("Symbolically executing");
@@ -2479,6 +2463,19 @@ public class DataManager {
 
 			while(!toExecute.isEmpty()){
 				BasicBlock executingBlock = toExecute.removeFirst();
+				boolean executedAllPredecessors2 = true;
+				for(BlockEdge pred : executingBlock.predecessors){
+					if(!executed.contains(pred.b1)){
+						executedAllPredecessors2 = false;
+						System.err.println("FALSE");
+						System.err.println("Did not execute "  + pred.b1 + " before " + executingBlock);
+						break;
+					}
+				}
+				if(!executedAllPredecessors2){
+					continue;
+				}
+
 				executed.add(executingBlock);
 
 				if(executingBlock.stackAtStart != null){
@@ -2497,6 +2494,9 @@ public class DataManager {
 					//locals.addAll(executingBlock.locals);
 				}
 
+				if(executingBlock.toString().startsWith("B575")){
+					System.out.println("Bp");
+				}
 				/*int numEdgesToThis = executingBlock.predecessors.size();
 				if(numEdgesToThis > 1){
 					for(int i = 0; i < locals.size(); i++){
@@ -2670,11 +2670,13 @@ public class DataManager {
 							Temporary valueToStore = popped[0] = stack.pop();
 							valueToStore.addReference(executingInstruction, mn);
 
+
 							valueToStore = valueToStore.cloneOnInstruction(executingInstruction);
 							locals.set(vvi.var, valueToStore);
 							if(parent != null){
-								assignLocalToParent(parent, vvi.var, valueToStore);
+								//assignLocalToParent(parent, vvi.var, valueToStore);
 							}
+
 							executingBlock.localsSetInBlock.put(vvi.var, locals.get(vvi.var));
 							temporaries.put(executingInstruction, valueToStore);
 							//addToTemporariesWritten(executingBlock, valueToStore);
@@ -2879,14 +2881,34 @@ public class DataManager {
 							toPush = new BinaryOperatorTemporary(executingInstruction, rhs, lhs, BinaryOperatorTemporary.XOR);
 							break;
 						case IINC:
+							/*
+							 *
+							vvi = (VarInsnNode) executingInstruction;
+							popped = new Temporary[1];
+							Temporary valueToStore = popped[0] = stack.pop();
+							valueToStore.addReference(executingInstruction, mn);
+
+							valueToStore = valueToStore.cloneOnInstruction(executingInstruction);
+							locals.set(vvi.var, valueToStore);
+							if(parent != null){
+								assignLocalToParent(parent, vvi.var, valueToStore);
+							}
+							executingBlock.localsSetInBlock.put(vvi.var, locals.get(vvi.var));
+							temporaries.put(executingInstruction, valueToStore);
+							 */
 							IincInsnNode iin = (IincInsnNode) executingInstruction;
 							Temporary localTemp = locals.get(iin.var);
-							locals.set(iin.var,
-									new BinaryOperatorTemporary(executingInstruction,
-											new ConstantTemporary(executingInstruction, iin.incr, Type.INT_TYPE),
-											localTemp, BinaryOperatorTemporary.ADD));
 							localTemp.forceConstancy(Temporary.NOT_CONSTANT);
-							executingBlock.localsSetInBlock.put(iin.var, locals.get(iin.var));
+							/*Temporary toStore = new BinaryOperatorTemporary(executingInstruction,
+									new ConstantTemporary(executingInstruction, iin.incr, Type.INT_TYPE),
+									locals.get(iin.var), BinaryOperatorTemporary.ADD);*/
+							//locals.set(iin.var, toStore);
+							//toStore.forceConstancy(Temporary.NOT_CONSTANT);
+							if(parent != null){
+								//assignLocalToParent(parent, iin.var, localTemp);
+							}
+							//localTemp.forceConstancy(Temporary.NOT_CONST`1ANT);
+							executingBlock.localsSetInBlock.put(iin.var, localTemp);
 							//addToTemporariesWritten(executingBlock, locals.get(iin.var));
 							break;
 						case I2L:
@@ -3223,12 +3245,34 @@ public class DataManager {
 				for(BlockEdge edge : executingBlock.successors){
 					BasicBlock successor = edge.b2;
 					if(!executed.contains(successor)){
-						successor.locals.clear();
-						successor.locals.addAll(locals);
-						successor.stackAtStart = mergeStacksAndClone(successor.stackAtStart, stack);
-						if(!toExecute.contains(successor)){
-							toExecute.add(successor);
+
+						boolean executedAllPredecessors = true;
+						for(BlockEdge pred : successor.predecessors){
+							if(!executed.contains(pred.b1)){
+								executedAllPredecessors = false;
+								break;
+							}
 						}
+						
+						
+
+						mergeLocals(successor.locals, executingBlock.locals);
+						
+						
+						if(executedAllPredecessors){
+
+							
+
+							//successor.locals.clear();
+							//successor.locals.addAll(locals);
+							successor.stackAtStart = mergeStacksAndClone(successor.stackAtStart, stack);
+							if(!toExecute.contains(successor)){
+								toExecute.add(successor);
+							}
+						}
+
+
+
 					}
 				}
 
@@ -3254,6 +3298,46 @@ public class DataManager {
 			log.finest("Finished symbolic execution.");
 		}
 
+		private void mergeLocals(ArrayList<Temporary> localsToMergeInto, ArrayList<Temporary> mergingFrom){
+			for(int i = 0; i < mergingFrom.size(); i++){
+				Temporary curVal = mergingFrom.get(i);
+				Temporary successorVal = localsToMergeInto.get(i);
+				if(curVal == successorVal){
+					continue;
+				}else if(curVal == null){
+					continue;
+				}else if(successorVal == null){
+					localsToMergeInto.set(i, curVal);
+				}else if(curVal.equals(successorVal)){
+					continue;
+				}else{
+					boolean curIsPhi = curVal instanceof PhiTemporary;
+					boolean successorIsPhi = successorVal instanceof PhiTemporary;
+					Temporary[] toMerge;
+					if(curIsPhi){
+						PhiTemporary curPhi = (PhiTemporary) curVal;
+						if(successorIsPhi){
+							PhiTemporary successorPhi = (PhiTemporary) successorVal;
+							toMerge = new Temporary[curPhi.mergedTemporaries.length + successorPhi.mergedTemporaries.length];
+							System.arraycopy(successorPhi.mergedTemporaries, 0, toMerge, 0, successorPhi.mergedTemporaries.length);
+							System.arraycopy(curPhi.mergedTemporaries, 0, toMerge, successorPhi.mergedTemporaries.length, curPhi.mergedTemporaries.length);
+						}else{
+							toMerge = new Temporary[curPhi.mergedTemporaries.length + 1];
+							toMerge[0] = successorVal;
+							System.arraycopy(curPhi.mergedTemporaries, 0, toMerge, 1, curPhi.mergedTemporaries.length);
+						}
+					}else if(successorIsPhi){
+						PhiTemporary successorPhi = (PhiTemporary) successorVal;
+						toMerge = new Temporary[successorPhi.mergedTemporaries.length + 1];
+						System.arraycopy(successorPhi.mergedTemporaries, 0, toMerge, 0, successorPhi.mergedTemporaries.length);
+						toMerge[toMerge.length - 1] = curVal;
+					}else{
+						toMerge = new Temporary[]{successorVal, curVal};
+					}
+					localsToMergeInto.set(i, new PhiTemporary(toMerge, i));
+				}
+			}
+		}
 
 
 
