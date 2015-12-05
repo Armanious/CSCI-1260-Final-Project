@@ -290,6 +290,9 @@ public class ConstantFolder {
 			Temporary arrayInstance = t.arrayRef;
 			int dimensionToGetLengthOf = 0;
 			while(!(arrayInstance instanceof ArrayInstanceTemporary)){
+				if(!(arrayInstance instanceof ArrayReferenceTemporary)){
+					return null;
+				}
 				arrayInstance = ((ArrayReferenceTemporary)arrayInstance).arrayRef;
 				dimensionToGetLengthOf++;
 			}
@@ -302,7 +305,7 @@ public class ConstantFolder {
 			System.err.println("Warning: InstanceofOperatorTemporary does not check against full class hierarchy.");
 			return objectType.equals(toCheck);
 		});
-		RESOLVER_MAP.put(PhiTemporary.class, (t) ->{
+		RESOLVER_MAP.put(PhiTemporary.class, (t) -> {
 			throw new RuntimeException("I don't know how you called me: " + t.getClass());
 		});
 	}

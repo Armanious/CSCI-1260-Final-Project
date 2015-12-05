@@ -710,6 +710,9 @@ public class DataManager {
 				//LSHL, LSHR, LUSHR
 				return rhs;
 			}
+			lhst.getType();
+			((PhiTemporary)lhst).debugType();
+			rhst.getType();
 			new RuntimeException(lhs + ", " + rhs).printStackTrace();
 			throw new RuntimeException();
 		}
@@ -1191,12 +1194,17 @@ public class DataManager {
 	public Type getCommonSuperType(Type t1, Type t2){
 		if(t1.equals(t2)){
 			return t1;
-		}else if(t1 == Type.INT_TYPE){
-			if(t2 == Type.BYTE_TYPE || t2 == Type.SHORT_TYPE || t2 == Type.CHAR_TYPE || t2 == Type.BOOLEAN_TYPE){
-				return Type.INT_TYPE;
-			}
-		}else if(t2 == Type.INT_TYPE){
-			if(t1 == Type.BYTE_TYPE || t1 == Type.SHORT_TYPE || t1 == Type.CHAR_TYPE || t1 == Type.BOOLEAN_TYPE){
+		}else if(t1.getSort() <= Type.INT && t2.getSort() <= Type.INT){
+			switch(Math.max(t1.getSort(), t2.getSort())){
+			case Type.BOOLEAN:
+				return Type.BOOLEAN_TYPE;
+			case Type.CHAR:
+				return Type.CHAR_TYPE;
+			case Type.BYTE:
+				return Type.BYTE_TYPE;
+			case Type.SHORT:
+				return Type.SHORT_TYPE;
+			case Type.INT:
 				return Type.INT_TYPE;
 			}
 		}
@@ -1250,6 +1258,10 @@ public class DataManager {
 			super(null, knownType);
 			this.mergedTemporaries = toMerge;
 			this.index = index;
+		}
+
+		public void debugType() {
+			Type t = getCommonSuperType(mergedTemporaries);
 		}
 
 		public PhiTemporary(Temporary[] toMerge, int index) {
@@ -1488,7 +1500,7 @@ public class DataManager {
 	}
 
 	private static final Level DEFAULT_LOG_LEVEL = Level.FINE;
-	private static final String TO_DEBUG = null;//"test/hi/Hello.fundamentalLoopTest(I)V";
+	private static final String TO_DEBUG = null;// "test/hi/Hello.loopTest()V";
 
 	private static final Logger log = Logger.getLogger("DataManager");
 	static {
