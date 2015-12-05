@@ -1530,9 +1530,12 @@ public class DataManager {
 
 		public final LoopEntry parent;
 		public final BasicBlock entry;
-		public final Set<LoopEntry> children = new HashSet<>();
+		public final ArrayList<LoopEntry> children = new ArrayList<>();
+		//must be array list to keep the relative order of the children preserved
+		//first child that is executed is the first element; last is last
 		public final Set<BasicBlock> blocksInLoop = new HashSet<>();
 		public final BasicBlock end;
+		public final int nthSibling;
 
 		public LoopEntry(BasicBlock entry, BasicBlock endNotExit, LoopEntry prev){
 			this.entry = entry;
@@ -1544,7 +1547,10 @@ public class DataManager {
 			}
 			this.parent = prev;
 			if(parent != null){
+				nthSibling = parent.children.size();
 				parent.children.add(this);
+			}else{
+				nthSibling = -1;
 			}
 
 			Stack<BasicBlock> toAddStack = new Stack<>();
@@ -1813,8 +1819,10 @@ public class DataManager {
 		}
 
 		private void computeGraph(){
-			mn.instructions.insert(new LabelNode(new Label()));
-			mn.instructions.add(new LabelNode(new Label()));
+			if(!(mn.instructions.getFirst() instanceof LabelNode))
+				mn.instructions.insert(new LabelNode(new Label()));
+			if(!(mn.instructions.getLast() instanceof LabelNode))
+				mn.instructions.add(new LabelNode(new Label()));
 			mn.instructions.get(0);
 
 			AbstractInsnNode curBlockDelimeter = null;
@@ -2058,10 +2066,10 @@ public class DataManager {
 						}
 						LoopEntry loop = new LoopEntry(uniqueEntry,	edge.b1, prev);
 						if(loop.parent == null){
-							loopRoots.put(b, loop);
+							loopRoots.put(uniqueEntry, loop);
 						}
 
-						loops.put(b, loop);
+						loops.put(uniqueEntry, loop);
 						prev = loop;
 						break;
 					}

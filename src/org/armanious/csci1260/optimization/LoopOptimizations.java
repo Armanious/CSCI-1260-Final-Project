@@ -83,7 +83,7 @@ public class LoopOptimizations {
 	}
 
 	private boolean isInvariant(MethodInformation mi, HashMap<Integer, LoopEntry> varianceMap, LoopEntry currentEntry, Temporary t){
-		if(t instanceof PhiTemporary || t instanceof ConstantTemporary || t instanceof ParameterTemporary){
+		if(t instanceof PhiTemporary){
 			return false;
 			//t = resolvePrematurePhiTemporary((PhiTemporary)t);
 		}
@@ -165,7 +165,7 @@ public class LoopOptimizations {
 	public void optimize(){
 		int numLoopInvariants = 0;
 		for(MethodInformation mi : dm.methodInformations.values()){
-			//if(!mi.mn.name.equals("loopTest")) continue;
+			if(!mi.mn.name.equals("loopTest")) continue;
 			//System.out.println("\n" + mi.mn.name);
 			int startingNumLoopInvariants = numLoopInvariants;
 
@@ -273,7 +273,9 @@ public class LoopOptimizations {
 							if(t == null) continue;
 							//System.out.println("Instruction " + ain.getIndex() + ": " + Textifier.OPCODES[ain.getOpcode()] + " -> " + t);
 							
-							if(t.getDeclaration() instanceof VarInsnNode) continue;
+							if(t.getDeclaration() instanceof VarInsnNode ||
+									t instanceof ConstantTemporary ||
+									t instanceof ParameterTemporary) continue;
 							if(isInvariant(mi, variantLocals, entry, t)){
 								//System.out.println("Instruction " + ain.getIndex() + ": " + Textifier.OPCODES[ain.getOpcode()] + " -> " + t);
 
@@ -320,11 +322,22 @@ public class LoopOptimizations {
 
 							for(int j = 0; j < invariantRedefinitionLocations.size(); j++){
 								if(invariant.equals(invariantRedefinitionLocations.get(j).val1)){
+									BasicBlock otherLoopsEntry = invariantRedefinitionLocations.get(j).val2;
 									if(loop.contains(invariantRedefinitionLocations.get(j).val2)){
 										//if this loop is some parent of the loop currently defining the invariant
 										//move the invariant as far up the loop chain as possible
 										invariantRedefinitionLocations.set(j, new Tuple<>(invariant, loop.entry));
+									}else if(loop.parent == mi.loops.get(otherLoopsEntry).parent){
+										LoopEntry other = mi.loops.get(otherLoopsEntry);
+										if(loop.nthSibling < other.nthSibling){
+											//loop executes first
+											invariantRedefinitionLocations.set(j, new Tuple<>(invariant, loop.entry));
+										}else{
+											//other executes first
+											//don't need to change it
+										}
 									}
+									
 									indexOfLocalVariable = mi.mn.maxLocals + j;
 									break;
 								}
