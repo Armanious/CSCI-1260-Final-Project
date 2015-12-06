@@ -23,7 +23,6 @@ import java.util.logging.Level;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 
-import org.armanious.csci1260.DataManager.Temporary;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
@@ -184,7 +183,7 @@ public class DataManager {
 
 		public final ArrayList<AbstractInsnNode> getContiguousBlockSorted(){
 			final ArrayList<AbstractInsnNode> list = new ArrayList<>();
-			if(getDeclaration().getOpcode() >= Opcodes.ILOAD && getDeclaration().getOpcode() <= Opcodes.ALOAD){
+			if(getDeclaration() != null && getDeclaration().getOpcode() >= Opcodes.ILOAD && getDeclaration().getOpcode() <= Opcodes.ALOAD){
 				//cloned instruction with only a load; i.e. we are stored in a local variable
 				//we don't need to go through the other checks
 				list.add(getDeclaration());
@@ -1071,7 +1070,7 @@ public class DataManager {
 
 		@Override
 		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
-			if(getDeclaration().getOpcode() == Opcodes.NEWARRAY || getDeclaration().getOpcode() == Opcodes.ANEWARRAY){
+			if(getDeclaration().getOpcode() == Opcodes.NEWARRAY || getDeclaration().getOpcode() == Opcodes.ANEWARRAY || getDeclaration().getOpcode() == Opcodes.MULTIANEWARRAY){
 				for(int i = dimensionCounts.length - 1; i >= 0; i--){
 					dimensionCounts[i].addRelevantInstructionsToListSorted(list);
 				}
@@ -1818,14 +1817,17 @@ public class DataManager {
 			return blocks.get(this.mn.instructions.getLast());
 		}
 
-		private void computeGraph(){
-			if(!(mn.instructions.getFirst() instanceof LabelNode))
-				mn.instructions.insert(new LabelNode(new Label()));
+		private void computeGraph(){			
+			//if(!(mn.instructions.getFirst() instanceof LabelNode))
+			//we want our own completely unique entry block for the purposes of loops
+			mn.instructions.insert(new LabelNode(new Label()));
 			if(!(mn.instructions.getLast() instanceof LabelNode))
 				mn.instructions.add(new LabelNode(new Label()));
 			mn.instructions.get(0);
+			
 
 			AbstractInsnNode curBlockDelimeter = null;
+			//leave the very first LabelNode to be its own unique entrance block
 			for(AbstractInsnNode ain = mn.instructions.getFirst(); ain != null; ain = ain.getNext()){
 				int index = ain.getIndex();
 				if(curBlockDelimeter == null){
@@ -1853,6 +1855,10 @@ public class DataManager {
 					curBlockDelimeter = null;
 				}
 			}
+			if(getFirstBlock() == null){
+				System.err.println("What in the fucking hell");
+			}
+			//link(mn.instructions.getFirst(), mn.instructions.getFirst(), mn.instructions.getFirst().getNext(), BlockEdge.Type.ALWAYS);
 		}
 
 		private void printBlock(BasicBlock b){
@@ -1869,12 +1875,14 @@ public class DataManager {
 		}
 
 		private void labelEdgesDepthFirst(){
+			
 			pre = new int[blocks.size()];
 			post = new int[blocks.size()];
 			precount = 0;
 			postcount = blocks.size() + 1;
 
-			iDominanceMap.put(getLastBlock(), null);
+			iDominanceMap.put(getFirstBlock(), null);
+
 			dfs(getFirstBlock());
 
 			/*if(iDominanceMap.size() + 1 != blocks.size()){
@@ -2057,12 +2065,22 @@ public class DataManager {
 							if(j == i) continue;
 							if(b.predecessors.get(j).classification == BlockEdge.Classification.TREE){
 								uniqueEntry = b.predecessors.get(j).b1;
-								//java compiler restriction, each loop has unique entrance
+								//java compiler always compiles so that each loop has a unique entrance,
+								//except for the special case when the loop is the first block,
+								//handled below
 								break;
 							}
 						}
 						if(uniqueEntry == null){
-							throw new RuntimeException("Cannot determine unique entry for " + b);
+							//first block is part of the loop
+							//create a uniqueEntry just before it
+							if(b.getFirstInsnInBlock() != mn.instructions.getFirst()){
+								throw new RuntimeException("Cannot determine unique entry for " + b);
+							}
+							LabelNode ln = new LabelNode(new Label());
+							mn.instructions.insert(ln);
+							link(ln, ln, b.getFirstInsnInBlock(), BlockEdge.Type.ALWAYS);
+							uniqueEntry = blocks.get(ln);
 						}
 						LoopEntry loop = new LoopEntry(uniqueEntry,	edge.b1, prev);
 						if(loop.parent == null){
@@ -2486,11 +2504,14 @@ public class DataManager {
 			}
 
 			for(int i = 0; i < locals.size(); i++){
+				
+				
 				getFirstBlock().locals.add(locals.get(i));
 				getFirstBlock().localsSetInBlock.put(i, locals.get(i));
 			}
 
 			for(BasicBlock block : blocks.values()){
+				if(block == getFirstBlock()) continue;
 				block.locals.clear();
 				block.locals.addAll(locals);
 			}
@@ -2708,7 +2729,7 @@ public class DataManager {
 							valueToStore.addReference(executingInstruction, mn);
 
 
-							valueToStore = valueToStore.cloneOnInstruction(executingInstruction);
+							//valueToStore = valueToStore.cloneOnInstruction(executingInstruction);
 							locals.set(vvi.var, valueToStore);
 							if(parent != null){
 								//assignLocalToParent(parent, vvi.var, valueToStore);

@@ -165,7 +165,7 @@ public class LoopOptimizations {
 	public void optimize(){
 		int numLoopInvariants = 0;
 		for(MethodInformation mi : dm.methodInformations.values()){
-			if(!mi.mn.name.equals("loopTest")) continue;
+			//if(!mi.mn.name.equals("loopTest")) continue;
 			//System.out.println("\n" + mi.mn.name);
 			int startingNumLoopInvariants = numLoopInvariants;
 
@@ -252,7 +252,7 @@ public class LoopOptimizations {
 					}
 				}
 
-				System.out.println(mi.mn.name + " variantLocals: " + variantLocals);
+				//System.out.println(mi.mn.name + " variantLocals: " + variantLocals);
 
 				searched.clear();
 				toAnalyze = toAnalyzeClone;
@@ -292,10 +292,10 @@ public class LoopOptimizations {
 										}
 									}
 									list.add(t);
-									System.out.println("  Added " + t);
+									//System.out.println("  Added " + t);
 									for(Temporary crit : t.getCriticalTemporaries()){
 										if(list.remove(crit)){
-											System.out.println("Removed " + crit);
+											//System.out.println("Removed " + crit);
 										}
 									}
 								}
@@ -363,14 +363,14 @@ public class LoopOptimizations {
 					
 							insertBeforeLegacy2(mi.mn.instructions, toInsertClone.val2, toInsertClone.val1.getContiguousBlockSorted(), new VarInsnNode(DataManager.getStoreOpcode(toInsertClone.val1.getType()), indexOfLocalVariable));
 						
-						System.out.println("Loop invariant at " + dm.methodNodeToOwnerMap.get(mi.mn).name + "." + mi.mn.name + mi.mn.desc + ": " + toInsertClone.val1 + ", now stored in " + indexOfLocalVariable + " at the beginning of " + toInsertClone.val2);
+						//System.out.println("Loop invariant at " + dm.methodNodeToOwnerMap.get(mi.mn).name + "." + mi.mn.name + mi.mn.desc + ": " + toInsertClone.val1 + ", now stored in " + indexOfLocalVariable + " at the beginning of " + toInsertClone.val2);
 					}
 					numLoopInvariants += invariantRedefinitionLocations.size();
 					mi.mn.maxLocals += invariantRedefinitionLocations.size();
 
-					System.out.println("\nAFTER INSERTIONS:");
+					//System.out.println("\nAFTER INSERTIONS:");
 
-					printRegion(mi.mn, mi.mn.instructions.getFirst(), mi.mn.instructions.getLast());;
+					//printRegion(mi.mn, mi.mn.instructions.getFirst(), mi.mn.instructions.getLast());;
 					//System.out.println("\n\n");
 				}
 
@@ -462,7 +462,7 @@ public class LoopOptimizations {
 
 	private void insertBeforeLegacy(InsnList list, AbstractInsnNode where, ArrayList<AbstractInsnNode> block, VarInsnNode storeInsn, VarInsnNode loadInsn) {
 		list.get(0);
-		System.err.println("Inserting " + block.get(0).getIndex() + " - " + block.get(block.size() - 1).getIndex() + " + " + Textifier.OPCODES[storeInsn.getOpcode()] + " " + storeInsn.var + " before Instruction " + where.getIndex());
+		//System.err.println("Inserting " + block.get(0).getIndex() + " - " + block.get(block.size() - 1).getIndex() + " + " + Textifier.OPCODES[storeInsn.getOpcode()] + " " + storeInsn.var + " before Instruction " + where.getIndex());
 		list.insertBefore(block.get(0), loadInsn);
 		InsnList il = new InsnList();
 		for(AbstractInsnNode ain : block){
@@ -476,7 +476,7 @@ public class LoopOptimizations {
 	//copied to ConstantFolder
 	private static void replace(InsnList list, ArrayList<AbstractInsnNode> block, AbstractInsnNode insn) {
 		//list.get(0);
-		System.err.println("Replacing " + block.get(0).getIndex() + " - " + block.get(block.size() - 1).getIndex() + " with " + Textifier.OPCODES[insn.getOpcode()] + " " + ((VarInsnNode)insn).var);
+		//System.err.println("Replacing " + block.get(0).getIndex() + " - " + block.get(block.size() - 1).getIndex() + " with " + Textifier.OPCODES[insn.getOpcode()] + " " + ((VarInsnNode)insn).var);
 		list.insertBefore(block.get(0), insn);
 		for(AbstractInsnNode ain : block){
 			list.remove(ain);

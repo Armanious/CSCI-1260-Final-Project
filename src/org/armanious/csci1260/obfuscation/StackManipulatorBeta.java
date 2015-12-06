@@ -21,10 +21,12 @@ import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
+import org.objectweb.asm.util.Textifier;
+import org.objectweb.asm.util.TraceMethodVisitor;
 
 public class StackManipulatorBeta implements Opcodes {
 
-	private static final double RATE_OF_STACK_MANIPULATION = 0.2500;
+	private static final double RATE_OF_STACK_MANIPULATION = 10.2500;
 
 	private final DataManager dm;
 
@@ -43,7 +45,7 @@ public class StackManipulatorBeta implements Opcodes {
 			for(int i = 0; i < tmps.length; i++){
 				final Temporary tmp = tmps[i];
 				final ArrayList<AbstractInsnNode> block = tmp.getContiguousBlockSorted();
-				if(block == null) continue;
+				if(tmp.getDeclaration() == null || block == null) continue;
 
 				int index = Arrays.binarySearch(blocks, block, descendingComparator);
 				if(index < 0) index = ~index;
@@ -121,7 +123,7 @@ public class StackManipulatorBeta implements Opcodes {
 			TreeMap<ArrayList<AbstractInsnNode>, Temporary> goodTargets = new TreeMap<>((a1,a2)->a1.size()-a2.size());
 			for(Temporary tmp : tmps){
 				ArrayList<AbstractInsnNode> block = tmp.getContiguousBlockSorted();
-				if(block != null && block.size() >= 3){
+				if(tmp.getDeclaration() != null && block != null && block.size() >= 3){
 					goodTargets.put(block, tmp);
 				}
 			}
@@ -186,7 +188,7 @@ public class StackManipulatorBeta implements Opcodes {
 	private static Tuple<InsnList, Tuple<Integer, Integer>> generateInsertion(){
 		//TODO copy random parts of code from other parts of the project?
 		final InsnList toReturn = new InsnList();
-		final int sizeOfReturn = r.nextInt(3);
+		final int sizeOfReturn = 1;//r.nextInt(3);
 		int maxStackIncrement;
 		switch(sizeOfReturn){
 		case 0:
@@ -255,9 +257,22 @@ public class StackManipulatorBeta implements Opcodes {
 		if(toInsertBefore.val2.val2 > mi.mn.maxStack - stackAfter.size()){
 			mi.mn.maxStack += toInsertBefore.val2.val2 - (mi.mn.maxStack - stackBefore.size());
 		}
-
+		System.out.println("\n\nBefore:");
+		printInstructions(mi);
 		mi.mn.instructions.insertBefore(block.get(0), toInsertBefore.val1);
 		mi.mn.instructions.insert(block.get(block.size() - 1), toAddAfter);
+		System.out.println("\nAfter:");
+		printInstructions(mi);
+		System.out.println("\n\n");
+	}
+	
+	private void printInstructions(MethodInformation mn){
+		System.out.println(dm.methodNodeToOwnerMap.get(mn.mn).name + "." + mn.mn.name + mn.mn.desc);
+		Textifier t = new Textifier();
+		mn.mn.accept(new TraceMethodVisitor(t));
+		for(int i = 0; i < t.text.size(); i++){
+			System.out.print(i + ": " + t.text.get(i));
+		}
 	}
 
 	private int sizeBetweenInclusive(ArrayList<Temporary> critTemporaries, int f, int s){
@@ -453,7 +468,7 @@ public class StackManipulatorBeta implements Opcodes {
 		ListIterator<Integer> iter = possibilities.listIterator();
 		while(iter.hasNext()){
 			int next = iter.next();
-			if(criticalTemporaries.get(next).getContiguousBlockSorted() == null){
+			if(criticalTemporaries.get(next).getDeclaration() == null || criticalTemporaries.get(next).getContiguousBlockSorted() == null){
 				iter.remove();
 			}
 		}
@@ -487,7 +502,7 @@ public class StackManipulatorBeta implements Opcodes {
 				iter.remove();
 				continue;
 			}
-			if(criticalTemporaries.get(firstIndex + possibility).getContiguousBlockSorted() == null){
+			if(criticalTemporaries.get(firstIndex + possibility).getDeclaration() == null || criticalTemporaries.get(firstIndex + possibility).getContiguousBlockSorted() == null){
 				iter.remove();
 				continue;
 			}
