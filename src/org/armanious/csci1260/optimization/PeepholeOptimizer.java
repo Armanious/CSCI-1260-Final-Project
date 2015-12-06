@@ -6,7 +6,6 @@ import org.armanious.csci1260.temporaries.BinaryOperatorTemporary;
 import org.armanious.csci1260.temporaries.NegateOperatorTemporary;
 import org.armanious.csci1260.temporaries.Temporary;
 import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.tree.AbstractInsnNode;
 
 public class PeepholeOptimizer {
 	
@@ -56,7 +55,7 @@ public class PeepholeOptimizer {
 			}
 		}
 		
-		AbstractInsnNode prev = null;
+		//AbstractInsnNode prev = null;
 		
 		
 		return changed;

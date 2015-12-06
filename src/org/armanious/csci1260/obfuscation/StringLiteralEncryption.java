@@ -13,7 +13,6 @@ import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
-import org.objectweb.asm.tree.FrameNode;
 import org.objectweb.asm.tree.IincInsnNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.InsnNode;
@@ -28,9 +27,6 @@ import org.objectweb.asm.tree.VarInsnNode;
 import org.objectweb.asm.util.ASMifier;
 import org.objectweb.asm.util.TraceClassVisitor;
 
-//TODO add FrameNode instructions to injected bytecode and change the projects output ClassWriter
-//so that it doesnt calculate Frames; and then youll be able to run the ExceptionBlockObfuscator
-//with no problems
 public class StringLiteralEncryption {
 	
 	public static void main(String...args) throws IOException{

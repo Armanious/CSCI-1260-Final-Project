@@ -37,7 +37,7 @@ public final class ObfuscationManager {
 		//TODO
 		//om.addObfuscationPhase(new NameObfuscatorBeta(dm, om, name_pattern, name_length, preserve_package_structure, outputFileForNameRemapping));
 		if(use_stack_manipulation){
-			new StackManipulatorBeta(dm).obfuscate();
+			new StackManipulator(dm).obfuscate();
 			//om.addObfuscationPhase(new SimpleStackManipulator(om));
 		}
 		om.runAllObfuscators();

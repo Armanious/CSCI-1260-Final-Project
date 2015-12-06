@@ -6,26 +6,24 @@ import java.util.ListIterator;
 import java.util.Random;
 
 import org.armanious.csci1260.DataManager;
-import org.armanious.csci1260.temporaries.InvokeSpecialTemporary;
-import org.armanious.csci1260.temporaries.Temporary;
 import org.armanious.csci1260.JavaStack;
 import org.armanious.csci1260.MethodInformation;
 import org.armanious.csci1260.Tuple;
+import org.armanious.csci1260.temporaries.InvokeSpecialTemporary;
+import org.armanious.csci1260.temporaries.Temporary;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
-import org.objectweb.asm.util.Textifier;
-import org.objectweb.asm.util.TraceMethodVisitor;
 
-public class StackManipulatorBeta implements Opcodes {
+public class StackManipulator implements Opcodes {
 
 	private static final double RATE_OF_STACK_MANIPULATION = 0.2500;
 
 	private final DataManager dm;
 
-	public StackManipulatorBeta(DataManager dm){
+	public StackManipulator(DataManager dm){
 		this.dm = dm;
 	}
 
@@ -33,51 +31,6 @@ public class StackManipulatorBeta implements Opcodes {
 		int count = 0;
 		int possibilityCount = 0;
 		for(MethodInformation mi : dm.methodInformations.values()){
-			/*final Temporary[] tmps = mi.temporaries.values().toArray(new Temporary[mi.temporaries.size()]);
-			@SuppressWarnings("unchecked") //sigh type erasure
-			final ArrayList<AbstractInsnNode>[] blocks = (ArrayList<AbstractInsnNode>[]) new ArrayList[tmps.length];
-			final Comparator<ArrayList<AbstractInsnNode>> descendingComparator = (A,B)->(B == null ? -1 : B.size()) - (A == null ? -1 : A.size());
-			
-			for(int i = 0; i < tmps.length; i++){
-				final Temporary tmp = tmps[i];
-				final ArrayList<AbstractInsnNode> block = tmp.getContiguousBlockSorted();
-				if(tmp.getDeclaration() == null || block == null) continue;
-
-				int index = Arrays.binarySearch(blocks, block, descendingComparator);
-				if(index < 0) index = ~index;
-
-				System.arraycopy(blocks, index, blocks, index + 1, blocks.length - index - 1);
-				blocks[index] = block;
-				System.arraycopy(tmps, index, tmps, index + 1, tmps.length - index - 1);
-				tmps[index] = tmp;
-			}
-
-			for(int i = 0; i < blocks.length; i++){
-				final ArrayList<AbstractInsnNode> block = blocks[i];
-				if(block == null) continue;
-
-				final int start = block.get(0).getIndex();
-				final int end = block.get(block.size() - 1).getIndex();
-
-				for(int j = i + 1; j < blocks.length; j++){
-					final ArrayList<AbstractInsnNode> list2 = blocks[j];
-					if(list2 == null) continue;
-
-					final int start2 = list2.get(0).getIndex();
-					final int end2 = list2.get(list2.size() - 1).getIndex();
-
-					if((start2 >= start && start2 <= end) || (end2 >= start && end2 <= end)){
-						//make sure they are non-overlapping; i.e. select the temporaries with
-						//the largest size of contiguous instructions and remove the temporaries
-						//that interfere with it (may or may not be an operand)
-
-						blocks[j] = null;
-						tmps[j] = null;
-						//allowing such overlap breaks the LinkedList because there will
-						// **many** circular connections of ~3 instructions
-					}
-				}
-			}*/
 			
 			ArrayList<Temporary> targets = new ArrayList<>();
 			for(Temporary t : mi.temporaries.values()){
@@ -229,15 +182,6 @@ public class StackManipulatorBeta implements Opcodes {
 	//	System.out.println("\nAfter:");
 	//	printInstructions(mi);
 	//	System.out.println("\n\n");
-	}
-	
-	private void printInstructions(MethodInformation mn){
-		System.out.println(dm.methodNodeToOwnerMap.get(mn.mn).name + "." + mn.mn.name + mn.mn.desc);
-		Textifier t = new Textifier();
-		mn.mn.accept(new TraceMethodVisitor(t));
-		for(int i = 0; i < t.text.size(); i++){
-			System.out.print(i + ": " + t.text.get(i));
-		}
 	}
 
 	private int sizeBetweenInclusive(ArrayList<Temporary> critTemporaries, int f, int s){

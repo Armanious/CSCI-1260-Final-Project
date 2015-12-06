@@ -22,7 +22,7 @@ public class PhiTemporary extends Temporary {
 	}
 
 	public void debugType() {
-		Type t = dm.getCommonSuperType(mergedTemporaries);
+		dm.getCommonSuperType(mergedTemporaries);
 	}
 
 	public PhiTemporary(DataManager dm, Temporary[] toMerge, int index) {

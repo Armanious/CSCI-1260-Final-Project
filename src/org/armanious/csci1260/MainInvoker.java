@@ -1,15 +1,6 @@
 package org.armanious.csci1260;
 
-import java.io.BufferedInputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.PrintWriter;
-
-import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.util.TraceClassVisitor;
 
 public class MainInvoker {
 
@@ -102,22 +93,7 @@ public class MainInvoker {
 			}
 		}*/
 	}
-
-	private static void print(File file){
-		try {
-			print(new FileInputStream(file));
-		} catch (FileNotFoundException e) {
-			e.printStackTrace();
-		}
-	}
-
-	private static void print(InputStream in){
-		try {
-			new ClassReader(new BufferedInputStream(in)).accept(new TraceClassVisitor(new PrintWriter(System.out)), 0);
-		} catch (IOException e2) {
-			e2.printStackTrace();
-		}
-	}
+	
 	public boolean runMain() {
 		try {
 			ProcessBuilder builder = new ProcessBuilder().inheritIO().directory(parentDirectory);

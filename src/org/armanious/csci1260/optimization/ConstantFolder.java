@@ -6,6 +6,7 @@ import java.util.HashMap;
 
 import org.armanious.csci1260.DataManager;
 import org.armanious.csci1260.MethodInformation;
+import org.armanious.csci1260.Tuple;
 import org.armanious.csci1260.temporaries.ArrayInstanceTemporary;
 import org.armanious.csci1260.temporaries.ArrayLengthOperator;
 import org.armanious.csci1260.temporaries.ArrayReferenceTemporary;
@@ -22,16 +23,13 @@ import org.armanious.csci1260.temporaries.ObjectInstanceTemporary;
 import org.armanious.csci1260.temporaries.ParameterTemporary;
 import org.armanious.csci1260.temporaries.PhiTemporary;
 import org.armanious.csci1260.temporaries.Temporary;
-import org.armanious.csci1260.Tuple;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.IntInsnNode;
 import org.objectweb.asm.tree.LdcInsnNode;
-import org.objectweb.asm.tree.MethodNode;
 
 public class ConstantFolder {
 

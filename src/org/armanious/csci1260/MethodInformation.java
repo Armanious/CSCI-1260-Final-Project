@@ -6,7 +6,6 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -171,11 +170,8 @@ public class MethodInformation implements Opcodes {
 		mn.instructions.get(0);
 		//computeFieldReadWriteInfo();
 
-		labelEdgesDepthFirst();
+		labelEdgesDepthFirstAndComputeIdominance();
 
-		//omputeiDominanceNew();
-		//computeDominance();
-		//computeiDominance();
 		computeChildren();
 
 
@@ -285,7 +281,6 @@ public class MethodInformation implements Opcodes {
 		AbstractInsnNode curBlockDelimeter = null;
 		//leave the very first LabelNode to be its own unique entrance block
 		for(AbstractInsnNode ain = mn.instructions.getFirst(); ain != null; ain = ain.getNext()){
-			int index = ain.getIndex();
 			if(curBlockDelimeter == null){
 				curBlockDelimeter = ain;
 			}else{
@@ -314,23 +309,9 @@ public class MethodInformation implements Opcodes {
 		if(getFirstBlock() == null){
 			System.err.println("What in the fucking hell");
 		}
-		//link(mn.instructions.getFirst(), mn.instructions.getFirst(), mn.instructions.getFirst().getNext(), BlockEdge.Type.ALWAYS);
 	}
 
-	private void printBlock(BasicBlock b){
-		System.out.println(b);
-		Textifier t = new Textifier();
-		mn.accept(new TraceMethodVisitor(t));
-		mn.instructions.get(0);
-		Iterator<AbstractInsnNode> iter = b.instructionIteratorForward();
-		while(iter.hasNext()){
-			int op = iter.next().getOpcode();
-			if(op != -1)
-				System.out.println('\t' + Textifier.OPCODES[op]);//t.text.get(iter.next().getIndex()));
-		}
-	}
-
-	private void labelEdgesDepthFirst(){
+	private void labelEdgesDepthFirstAndComputeIdominance(){
 
 		pre = new int[blocks.size()];
 		post = new int[blocks.size()];
@@ -341,15 +322,6 @@ public class MethodInformation implements Opcodes {
 
 		dfsAndIdom(getFirstBlock());
 
-		/*if(iDominanceMap.size() + 1 != blocks.size()){
-		  Java compiler VERY often generate unreacahble bytecode? Especially the eclipse compiler
-
-			mn.instructions.get(0);
-			System.err.println("Warning: unreachable blocks:");
-			blocks.values().stream().filter((b) -> !iDominanceMap.containsKey(b) && b != getFirstBlock() && b != getLastBlock()).forEach(MethodInformation.this::printBlock);
-			System.out.println();
-		}*/
-
 	}
 
 	private int[] pre;
@@ -358,7 +330,6 @@ public class MethodInformation implements Opcodes {
 	private int postcount;
 
 	private BasicBlock ancestor(BasicBlock b1, BasicBlock b2){
-		BasicBlock initialB1 = b1;
 		BasicBlock initialB2 = b2;
 		while(b1 != null && b1 != b2){
 			b2 = initialB2;
@@ -396,96 +367,6 @@ public class MethodInformation implements Opcodes {
 		}
 		post[b.index] = postcount--;
 	}
-
-	//TODO TOO SLOW!!! This slows down my program 10-100x
-	/*private final HashMap<BasicBlock, BasicBlock> loop_entry = new HashMap<>();
-	private final HashMap<BasicBlock, Set<BasicBlock>> loop_contains = new HashMap<>();
-	private BasicBlock loop_root;
-	private final HashMap<BasicBlock, BasicBlock> loop_parent = new HashMap<>();
-
-	private void computeLoopGraph(){
-		for(BasicBlock B : blocks.values()){
-			loop_entry.put(B, B);
-			loop_contains.put(B, new HashSet<>());
-			loop_contains.get(B).add(B);
-		}
-		Stack<BasicBlock> DFSStack = new Stack<>();
-		DFSStack.push(getFirstBlock());
-		while(!DFSStack.isEmpty()){
-			BasicBlock B = DFSStack.pop();
-			findLoop(B);
-			BasicBlock nextDFS = null;
-			for(BlockEdge successor : B.successors){
-				if(successor.classification != BlockEdge.Classification.TREE){
-					DFSStack.push(successor.b2);
-				}else{
-					nextDFS = successor.b2;
-				}
-			}
-			if(nextDFS != null){
-				DFSStack.push(nextDFS);
-			}
-		}
-		Set<BasicBlock> bset = new HashSet<>();
-		bset.add(getLastBlock());
-		loop_root = findLoopBody(bset, getFirstBlock());
-	}
-
-	private void findLoop(BasicBlock B){
-		Set<BasicBlock> loop = new HashSet<>();
-		for(BlockEdge E : B.predecessors){
-			if(E.classification == BlockEdge.Classification.BACK){
-				BasicBlock P = E.b1;
-				if(P != B){
-					loop.add(P);
-				}
-			}
-		}
-		findLoopBody(loop, B);
-	}
-
-	private BasicBlock findLoopBody(Set<BasicBlock> gen, BasicBlock head){
-		Set<BasicBlock> loop = new HashSet<>();
-		LinkedList<BasicBlock> queue = new LinkedList<>();
-		for(BasicBlock B : gen){
-			BasicBlock L = loopAncestor(B);
-			if(loop.add(L)){
-				queue.add(L);
-			}
-		}
-
-		while(!queue.isEmpty()){
-			BasicBlock B = queue.removeFirst();
-			for(BlockEdge predecessor : B.predecessors){
-				BasicBlock P = predecessor.b1;
-				if(P != head){
-					BasicBlock L = loopAncestor(P);
-					if(loop.add(L)){
-						queue.add(L);
-					}
-				}
-			}
-		}
-
-		loop.add(head);
-		BasicBlock X = new BasicBlock(blocks.size());
-
-		loop_contains.put(X, loop);
-		loop_entry.put(X, head);
-		loop_parent.put(X, null);
-		for(BasicBlock B : loop){
-			loop_parent.put(B, X);
-		}
-
-		return X;
-	}
-
-	private BasicBlock loopAncestor(BasicBlock B){
-		while(loop_parent.get(B) != null){
-			B = loop_parent.get(B);
-		}
-		return B;
-	}*/
 
 	private LoopEntry recursiveLoopSearch(LoopEntry entry, BasicBlock b){
 		//entry.contains(b) == true
@@ -996,61 +877,12 @@ public class MethodInformation implements Opcodes {
 				stack = executingBlock.stackAtStart;
 
 			}
-
-			BasicBlock parent = iDominanceMap.get(executingBlock);
 			locals = executingBlock.locals;
-			if(parent != null){
-				//locals = parent.locals;
-				//locals.clear();
-				//locals.addAll(iDominanceMap.get(executingBlock).locals);
-				//locals = idom(cur).locals
-
-				//locals.addAll(executingBlock.locals);
-			}
-
-			if(executingBlock.toString().startsWith("B575")){
-				System.out.println("Bp");
-			}
-			/*int numEdgesToThis = executingBlock.predecessors.size();
-			if(numEdgesToThis > 1){
-				for(int i = 0; i < locals.size(); i++){
-					Temporary[] toMerge = new Temporary[numEdgesToThis];
-					boolean shouldActuallyMerge = false;
-					for(int j = 0; j < numEdgesToThis; j++){
-						toMerge[j] = executingBlock.predecessors.get(j).b1.localsSetInBlock.get(i);
-						if(j == 0) continue;
-						if(!shouldActuallyMerge){
-							if(toMerge[0] == toMerge[j]) continue;
-							if(toMerge[0] == null || toMerge[j] == null){
-								shouldActuallyMerge = true;
-								continue;
-							}else{
-								shouldActuallyMerge = !toMerge[0].equals(toMerge[j]);
-							}
-						}
-					}
-
-					if(shouldActuallyMerge){
-						locals.set(i, new PhiTemporary(toMerge, i, executingBlock));
-					}else if(toMerge[0] != null){
-						//when !shouldActuallyMergge,
-						//toMerge[0] == null iff the local was not set in any predecessor
-						//all of toMerge is null
-						locals.set(i, toMerge[0]);
-					}
-
-				}
-			}
-			//TODO merge locals from predecessors*/
-
-
+			
 			DataManager.log.finest("Executing block " + executingBlock);
 			DataManager.log.finest("Temporaries stack at start: " + executingBlock.stackAtStart);
 			DataManager.log.finest("Locals at start: " + locals);
 
-			//System.out.println("Picking it up at Block " + executingBlock.index + " at Instruction " + executingBlock.firstInsnInBlock.getIndex() +
-			//	"\n\t" + t.text.get(executingBlock.firstInsnInBlock.getIndex())  + "\tStack: " + executingBlock.stackAtStart + "\n\tLocals: " + locals + "\n");
-			//execute
 			final Iterator<AbstractInsnNode> insnsOfBlock = executingBlock.instructionIteratorForward();
 			AbstractInsnNode executingInstruction = null;
 
@@ -1187,9 +1019,6 @@ public class MethodInformation implements Opcodes {
 
 						//valueToStore = valueToStore.cloneOnInstruction(executingInstruction);
 						locals.set(vvi.var, valueToStore);
-						if(parent != null){
-							//assignLocalToParent(parent, vvi.var, valueToStore);
-						}
 
 						executingBlock.localsSetInBlock.put(vvi.var, locals.get(vvi.var));
 						temporaries.put(executingInstruction, valueToStore);
@@ -1395,35 +1224,10 @@ public class MethodInformation implements Opcodes {
 						toPush = new BinaryOperatorTemporary(executingInstruction, rhs, lhs, BinaryOperatorTemporary.XOR);
 						break;
 					case IINC:
-						/*
-						 *
-						vvi = (VarInsnNode) executingInstruction;
-						popped = new Temporary[1];
-						Temporary valueToStore = popped[0] = stack.pop();
-						valueToStore.addReference(executingInstruction, mn);
-
-						valueToStore = valueToStore.cloneOnInstruction(executingInstruction);
-						locals.set(vvi.var, valueToStore);
-						if(parent != null){
-							assignLocalToParent(parent, vvi.var, valueToStore);
-						}
-						executingBlock.localsSetInBlock.put(vvi.var, locals.get(vvi.var));
-						temporaries.put(executingInstruction, valueToStore);
-						 */
 						IincInsnNode iin = (IincInsnNode) executingInstruction;
 						Temporary localTemp = locals.get(iin.var);
 						localTemp.forceConstancy(Temporary.NOT_CONSTANT);
-						/*Temporary toStore = new BinaryOperatorTemporary(executingInstruction,
-								new ConstantTemporary(executingInstruction, iin.incr, Type.INT_TYPE),
-								locals.get(iin.var), BinaryOperatorTemporary.ADD);*/
-						//locals.set(iin.var, toStore);
-						//toStore.forceConstancy(Temporary.NOT_CONSTANT);
-						if(parent != null){
-							//assignLocalToParent(parent, iin.var, localTemp);
-						}
-						//localTemp.forceConstancy(Temporary.NOT_CONST`1ANT);
 						executingBlock.localsSetInBlock.put(iin.var, localTemp);
-						//addToTemporariesWritten(executingBlock, locals.get(iin.var));
 						break;
 					case I2L:
 					case I2F:
@@ -1698,12 +1502,6 @@ public class MethodInformation implements Opcodes {
 					DataManager.log.finest("\t\tTo push: " + toPush);
 					DataManager.log.finest("\t\tTemporaries after execution: " + stack);
 					DataManager.log.finest("\t\tLocals after execution: " + locals);
-
-					//System.out.println(Textifier.OPCODES[executingInstruction.getOpcode()]);
-
-					//System.out.println("\t\tStack: " + temporariesStack
-					//	+ "\n\t\tLocals: " + locals);
-
 				}
 			}catch(Throwable throwable){
 				//throwable.printStackTrace();
@@ -1730,31 +1528,8 @@ public class MethodInformation implements Opcodes {
 				DataManager.log.severe(errorMessage.toString());
 				return;
 			}
-
-
-			//executingBlock.stackAtEnd.clear();
-			//executingBlock.stackAtEnd.addAll(temporariesStack);
-			//executingBlock.localsAtEnd.clear();
-			//executingBlock.localsAtEnd.addAll(locals);
-
 			DataManager.log.finest("Stack at end of " + executingBlock + ": " + stack);
 			DataManager.log.finest("Locals at end of " + executingBlock + ": " + locals);
-
-			
-			/*if(children != null){
-				for(BasicBlock child : children){
-					child.stackAtStart = mergeStacksAndClone(child.stackAtStart, stack);
-
-					child.localsAtStart.clear();
-					child.localsAtStart.addAll(locals);
-
-					log.finest("Adding " + child + " to execution queue");
-					toExecute.push(child);
-					//TODO go through a loop again so that the values re-flow
-					//and mark NOT_CONSTANT whatever is actually not constant
-					//through the phi operators
-				}
-			}*/
 			for(BlockEdge edge : executingBlock.successors){
 				BasicBlock successor = edge.b2;
 				if(!executed.contains(successor)){
@@ -1766,18 +1541,8 @@ public class MethodInformation implements Opcodes {
 							break;
 						}
 					}
-
-
-
 					mergeLocals(successor.locals, executingBlock.locals);
-
-
 					if(executedAllPredecessors){
-
-
-
-						//successor.locals.clear();
-						//successor.locals.addAll(locals);
 						successor.stackAtStart = mergeStacksAndClone(successor.stackAtStart, stack);
 						if(!toExecute.contains(successor)){
 							toExecute.add(successor);
@@ -1788,22 +1553,6 @@ public class MethodInformation implements Opcodes {
 
 				}
 			}
-
-
-			/*
-			for(BlockEdge b : executingBlock.edgesFromThis){
-				b.b2.stackAtStart.clear();
-				b.b2.stackAtStart.addAll(temporariesStack);
-				b.b2.localsAtStart.clear();
-				b.b2.localsAtStart.addAll(locals);
-				//if(b.classification == BlockEdge.Classification.TREE){
-				if(!executed.contains(b.b2) && !toExecute.contains(b.b2)){
-					toExecute.add(b.b2);
-					log.finest("Adding " + b.b2 + " to execution queue");
-					//toExecute.push(b.b2);
-				}
-				//}
-			}*/
 			DataManager.log.finest("Execution queue after " + executingBlock + ": " + toExecute);;
 
 		}

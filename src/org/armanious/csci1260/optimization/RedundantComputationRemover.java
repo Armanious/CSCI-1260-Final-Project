@@ -22,16 +22,6 @@ public class RedundantComputationRemover {
 		this.dm = dm;
 	}
 
-	private int getLength(AbstractInsnNode start, AbstractInsnNode end){
-		if(start == null || end == null) return 0;
-		if(start == end) return 1;
-		int i = 2;
-		while(start != null && (start = start.getNext()) != end){
-			i++;
-		}
-		return i;
-	}
-
 	//TODO
 	//For each temporary T, if there is a temporary in locals at the current block that equals T,
 	//replace T.getContiguousBlockSorted() with the correct VarInsnNode

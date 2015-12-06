@@ -2,7 +2,6 @@ package org.armanious.csci1260.temporaries;
 
 import java.util.ArrayList;
 
-import org.armanious.csci1260.DataManager;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
