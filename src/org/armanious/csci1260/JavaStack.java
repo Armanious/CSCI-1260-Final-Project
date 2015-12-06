@@ -1,6 +1,6 @@
 package org.armanious.csci1260;
 
-import org.armanious.csci1260.DataManager.Temporary;
+import org.armanious.csci1260.temporaries.Temporary;
 import org.objectweb.asm.tree.AbstractInsnNode;
 
 public final class JavaStack {

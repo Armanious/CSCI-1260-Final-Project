@@ -6,6 +6,7 @@ import java.lang.reflect.Modifier;
 import java.util.Random;
 
 import org.armanious.csci1260.DataManager;
+import org.armanious.csci1260.MethodInformation;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;
@@ -180,7 +181,7 @@ public class StringLiteralEncryption {
 				insertInstructions(insertedMethodNode);
 				
 				dm.methodNodeToOwnerMap.put(insertedMethodNode, cn);
-				dm.methodInformations.put(insertedMethodNode, dm.new MethodInformation(insertedMethodNode));
+				dm.methodInformations.put(insertedMethodNode, new MethodInformation(dm, insertedMethodNode));
 			}
 			return new MethodInsnNode(Opcodes.INVOKESTATIC, decipherMethodOwner, decipherMethodName, decipherDesc, isOwnerInterface);
 		}

@@ -1,10 +1,10 @@
 package org.armanious.csci1260.optimization;
 
 import org.armanious.csci1260.DataManager;
-import org.armanious.csci1260.DataManager.BinaryOperatorTemporary;
-import org.armanious.csci1260.DataManager.MethodInformation;
-import org.armanious.csci1260.DataManager.NegateOperatorTemporary;
-import org.armanious.csci1260.DataManager.Temporary;
+import org.armanious.csci1260.MethodInformation;
+import org.armanious.csci1260.temporaries.BinaryOperatorTemporary;
+import org.armanious.csci1260.temporaries.NegateOperatorTemporary;
+import org.armanious.csci1260.temporaries.Temporary;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 

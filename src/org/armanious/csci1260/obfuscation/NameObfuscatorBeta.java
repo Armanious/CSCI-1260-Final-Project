@@ -14,9 +14,9 @@ import java.util.Map;
 import java.util.Random;
 
 import org.armanious.csci1260.DataManager;
-import org.armanious.csci1260.DataManager.ConstantTemporary;
-import org.armanious.csci1260.DataManager.MethodInvocationTemporary;
-import org.armanious.csci1260.DataManager.Temporary;
+import org.armanious.csci1260.temporaries.ConstantTemporary;
+import org.armanious.csci1260.temporaries.MethodInvocationTemporary;
+import org.armanious.csci1260.temporaries.Temporary;
 import org.armanious.csci1260.JavaStack;
 import org.armanious.csci1260.Tuple;
 import org.objectweb.asm.Handle;

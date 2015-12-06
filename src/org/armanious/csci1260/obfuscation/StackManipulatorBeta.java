@@ -6,10 +6,10 @@ import java.util.ListIterator;
 import java.util.Random;
 
 import org.armanious.csci1260.DataManager;
-import org.armanious.csci1260.DataManager.InvokeSpecialTemporary;
-import org.armanious.csci1260.DataManager.MethodInformation;
-import org.armanious.csci1260.DataManager.Temporary;
+import org.armanious.csci1260.temporaries.InvokeSpecialTemporary;
+import org.armanious.csci1260.temporaries.Temporary;
 import org.armanious.csci1260.JavaStack;
+import org.armanious.csci1260.MethodInformation;
 import org.armanious.csci1260.Tuple;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -117,14 +117,6 @@ public class StackManipulatorBeta implements Opcodes {
 				}
 			}
 			
-			if(targets.size() > 0){
-				System.out.println("Targets of " + dm.methodNodeToOwnerMap.get(mi.mn).name + "." + mi.mn.name + mi.mn.desc);
-				for(Temporary target : targets){
-					ArrayList<AbstractInsnNode> block = target.getContiguousBlockSorted();
-					System.out.println("\t" + target + ": Instructions " + block.get(0).getIndex() + " - " + block.get(block.size() - 1).getIndex());
-				}
-				System.out.println("\n");
-			}
 			for(int i = 0; i < targets.size(); i++){
 				final Temporary tmp = targets.get(i);
 				final ArrayList<AbstractInsnNode> block = targets.get(i).getContiguousBlockSorted();
