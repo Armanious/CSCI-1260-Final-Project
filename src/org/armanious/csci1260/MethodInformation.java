@@ -185,8 +185,7 @@ public class MethodInformation implements Opcodes {
 		doSymbolicExecution();
 
 		computeLoopGraph();
-
-		mn.instructions.get(0);//TODO remove me
+		
 		//We do this after computeGraph because that function inserts
 		//a LabelNode at the begining of mn.instructions
 		//and because computeLoopGraph inserts other labels
@@ -249,7 +248,7 @@ public class MethodInformation implements Opcodes {
 		BasicBlock b1 = getBlockFromInstruction(b1Delimeter);
 		BasicBlock b2 = getBlockFromInstruction(b2Delimeter);
 
-		BlockEdge edge = new BlockEdge(type, null, b1, b2);
+		BlockEdge edge = new BlockEdge(type, b1, b2);
 		if(b1.successors.stream().anyMatch((b)->b.type == type)){
 			mn.instructions.get(0);//build cache for meaningful output
 			System.out.println("Error: cannot add edge twice: " + b1.firstInsnInBlock.getIndex() + " " + type + " " + b2.firstInsnInBlock.getIndex());
@@ -708,24 +707,6 @@ public class MethodInformation implements Opcodes {
 		}
 		read.add(tmp);
 	}
-
-	/*@Deprecated
-	private void addToTemporariesWritten(BasicBlock block, Temporary tmp){
-		temporaries.add(tmp);
-		Set<Temporary> written = temporariesWritten.get(block);
-		if(written == null){
-			written = new HashSet<>();
-			temporariesWritten.put(block, written);
-		}
-		written.add(tmp);
-		/*if(tmp.constancy == Temporary.CONSTANCY_UNKNOWN){
-			tmp.constancy = Temporary.CONSTANT; //written to once so far; "constant"
-			System.err.println("SETTING CONSTANT: " + tmp);
-		}else if(tmp.constancy == Temporary.CONSTANT){
-			tmp.constancy = Temporary.NOT_CONSTANT;
-			//TODO FIXME I don't know if this works!
-		}*/
-	//}
 
 	private JavaStack mergeStacksAndClone(JavaStack prev, JavaStack toMerge){
 		if(prev == null || prev.size() == 0) return toMerge.clone();

@@ -10,9 +10,8 @@ public class BlockEdge {
 	public final BasicBlock b1;
 	public final BasicBlock b2;
 
-	public BlockEdge(BlockEdge.Type type, BlockEdge.Classification classification, BasicBlock b1, BasicBlock b2){
+	public BlockEdge(BlockEdge.Type type, BasicBlock b1, BasicBlock b2){
 		this.type = type;
-		this.classification = classification;
 		this.b1 = b1;
 		this.b2 = b2;
 	}
