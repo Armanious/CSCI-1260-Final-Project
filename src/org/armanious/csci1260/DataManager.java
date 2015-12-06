@@ -327,11 +327,13 @@ public class DataManager {
 
 		@Override
 		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
-			if(getObjectRef() != null){
-				getObjectRef().addRelevantInstructionsToListSorted(list);
-			}
-			if(getValue() != null){
-				getValue().addRelevantInstructionsToListSorted(list);
+			if(!(getDeclaration() instanceof VarInsnNode)){
+				if(getObjectRef() != null){
+					getObjectRef().addRelevantInstructionsToListSorted(list);
+				}
+				if(getValue() != null){
+					getValue().addRelevantInstructionsToListSorted(list);
+				}
 			}
 			list.add(getDeclaration());
 		}
@@ -457,8 +459,10 @@ public class DataManager {
 
 		@Override
 		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
-			for(int i = args.length - 1; i >= 0; i--){
+			if(!(getDeclaration() instanceof VarInsnNode)){
+				for(int i = 0; i < args.length; i++){
 				args[i].addRelevantInstructionsToListSorted(list);
+			}
 			}
 			list.add(getDeclaration());
 		}
@@ -638,8 +642,10 @@ public class DataManager {
 
 		@Override
 		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
-			arrayRef.addRelevantInstructionsToListSorted(list);
+			if(!(getDeclaration() instanceof VarInsnNode)){
+				arrayRef.addRelevantInstructionsToListSorted(list);
 			index.addRelevantInstructionsToListSorted(list);
+			}
 			list.add(getDeclaration());
 		}
 
@@ -650,7 +656,7 @@ public class DataManager {
 			list.add(index);
 			//index.addCriticalTemporariesToList(list);
 		}
-		
+
 		//int[][][] arr = new int[100][200][300];
 		//arr.length = 100
 		//arr[i].length = 200
@@ -763,8 +769,11 @@ public class DataManager {
 
 		@Override
 		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
-			lhs.addRelevantInstructionsToListSorted(list);
+			if(!(getDeclaration() instanceof VarInsnNode)){
+				lhs.addRelevantInstructionsToListSorted(list);
+			
 			rhs.addRelevantInstructionsToListSorted(list);
+			}
 			list.add(getDeclaration());
 		}
 
@@ -816,7 +825,9 @@ public class DataManager {
 
 		@Override
 		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
-			tmp.addRelevantInstructionsToListSorted(list);
+			if(!(getDeclaration() instanceof VarInsnNode)){
+				tmp.addRelevantInstructionsToListSorted(list);
+			}
 			list.add(getDeclaration());
 		}
 
@@ -896,7 +907,9 @@ public class DataManager {
 
 		@Override
 		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
-			tmp.addRelevantInstructionsToListSorted(list);
+			if(!(getDeclaration() instanceof VarInsnNode)){
+				tmp.addRelevantInstructionsToListSorted(list);
+			}
 			list.add(getDeclaration());
 		}
 
@@ -949,9 +962,11 @@ public class DataManager {
 
 		@Override
 		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
-			lhs.addRelevantInstructionsToListSorted(list);
+			if(!(getDeclaration() instanceof VarInsnNode)){
+				lhs.addRelevantInstructionsToListSorted(list);
 			if(rhs != null){
 				rhs.addRelevantInstructionsToListSorted(list);
+			}
 			}
 			list.add(getDeclaration());
 		}
@@ -1070,10 +1085,13 @@ public class DataManager {
 
 		@Override
 		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
-			if(getDeclaration().getOpcode() == Opcodes.NEWARRAY || getDeclaration().getOpcode() == Opcodes.ANEWARRAY || getDeclaration().getOpcode() == Opcodes.MULTIANEWARRAY){
+			if(!(getDeclaration() instanceof VarInsnNode)){
+				if(getDeclaration().getOpcode() == Opcodes.NEWARRAY || getDeclaration().getOpcode() == Opcodes.ANEWARRAY || getDeclaration().getOpcode() == Opcodes.MULTIANEWARRAY){
+			
 				for(int i = dimensionCounts.length - 1; i >= 0; i--){
 					dimensionCounts[i].addRelevantInstructionsToListSorted(list);
 				}
+			}
 			}
 			list.add(getDeclaration());
 		}
@@ -1126,7 +1144,9 @@ public class DataManager {
 
 		@Override
 		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
-			arrayRef.addRelevantInstructionsToListSorted(list);
+			if(!(getDeclaration() instanceof VarInsnNode)){
+				arrayRef.addRelevantInstructionsToListSorted(list);
+			}
 			list.add(getDeclaration());
 		}
 
@@ -1173,7 +1193,9 @@ public class DataManager {
 
 		@Override
 		protected void addRelevantInstructionsToListSorted(ArrayList<AbstractInsnNode> list) {
-			objectRef.addRelevantInstructionsToListSorted(list);
+			if(!(getDeclaration() instanceof VarInsnNode)){
+				objectRef.addRelevantInstructionsToListSorted(list);
+			}
 			list.add(getDeclaration());
 		}
 
@@ -1821,10 +1843,10 @@ public class DataManager {
 			//if(!(mn.instructions.getFirst() instanceof LabelNode))
 			//we want our own completely unique entry block for the purposes of loops
 			mn.instructions.insert(new LabelNode(new Label()));
-			if(!(mn.instructions.getLast() instanceof LabelNode))
-				mn.instructions.add(new LabelNode(new Label()));
+			//if(!(mn.instructions.getLast() instanceof LabelNode))
+			mn.instructions.add(new LabelNode(new Label()));
 			mn.instructions.get(0);
-			
+
 
 			AbstractInsnNode curBlockDelimeter = null;
 			//leave the very first LabelNode to be its own unique entrance block
@@ -1875,7 +1897,7 @@ public class DataManager {
 		}
 
 		private void labelEdgesDepthFirst(){
-			
+
 			pre = new int[blocks.size()];
 			post = new int[blocks.size()];
 			precount = 0;
@@ -2504,8 +2526,8 @@ public class DataManager {
 			}
 
 			for(int i = 0; i < locals.size(); i++){
-				
-				
+
+
 				getFirstBlock().locals.add(locals.get(i));
 				getFirstBlock().localsSetInBlock.put(i, locals.get(i));
 			}

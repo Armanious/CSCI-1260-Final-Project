@@ -377,7 +377,7 @@ public class LoopOptimizations {
 			}
 
 			if(numLoopInvariants > startingNumLoopInvariants){
-				mi.recompute(); //recompute at the end of any modifications
+				//mi.recompute(); //recompute at the end of any modifications
 			}
 		}
 

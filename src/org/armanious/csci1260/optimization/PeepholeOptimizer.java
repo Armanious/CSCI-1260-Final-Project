@@ -5,11 +5,13 @@ import org.armanious.csci1260.DataManager.BinaryOperatorTemporary;
 import org.armanious.csci1260.DataManager.MethodInformation;
 import org.armanious.csci1260.DataManager.NegateOperatorTemporary;
 import org.armanious.csci1260.DataManager.Temporary;
+import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 
 public class PeepholeOptimizer {
 	
 	private final DataManager dm;
+	Opcodes t;
 	
 	public PeepholeOptimizer(DataManager dm){
 		this.dm = dm;
