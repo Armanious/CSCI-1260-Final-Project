@@ -4,7 +4,7 @@ import java.io.File;
 import java.io.IOException;
 
 public class Tester {
-
+	
 	public static void main(String...unused) throws IOException {
 		System.out.println("Testing");
 		//final String PROGRAM_TO_TEST_ON = "CSCI 1260 Tests";
@@ -18,7 +18,10 @@ public class Tester {
 				"obfuscation.name_length=10",
 				"obfuscation.use_obfuscation=true",
 				"optimization.use_optimization=true"};
-		//Entry.main(args);
+		Entry.main(args);
+		
+		
+		
 		
 		
 		f = new File("/Users/david/OneDrive/Documents/workspace/CSCI 1260 Final Project/bin");
@@ -37,7 +40,7 @@ public class Tester {
 		
 		
 		
-		Entry.main(args);
+		//Entry.main(args);
 		
 		
 		

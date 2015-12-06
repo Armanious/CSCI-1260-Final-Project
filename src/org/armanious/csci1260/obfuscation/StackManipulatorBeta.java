@@ -1,12 +1,9 @@
 package org.armanious.csci1260.obfuscation;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.ListIterator;
-import java.util.Map.Entry;
 import java.util.Random;
-import java.util.TreeMap;
 
 import org.armanious.csci1260.DataManager;
 import org.armanious.csci1260.DataManager.InvokeSpecialTemporary;
@@ -24,7 +21,7 @@ import org.objectweb.asm.util.TraceMethodVisitor;
 
 public class StackManipulatorBeta implements Opcodes {
 
-	private static final double RATE_OF_STACK_MANIPULATION = 10.2500;
+	private static final double RATE_OF_STACK_MANIPULATION = 0.2500;
 
 	private final DataManager dm;
 
@@ -87,12 +84,9 @@ public class StackManipulatorBeta implements Opcodes {
 				if(t.getDeclaration() == null) continue;
 				ArrayList<AbstractInsnNode> block = t.getContiguousBlockSorted();
 				if(block == null){
-					//System.err.println("1Skipping " + t);
-					t.getContiguousBlockSorted();
 					continue;
 				}
 				if(block.size() < 3){
-					//System.err.println("2Skipping " + t);
 					continue;
 				}
 				if(block.get(0).getIndex() < 0){
@@ -134,9 +128,6 @@ public class StackManipulatorBeta implements Opcodes {
 			for(int i = 0; i < targets.size(); i++){
 				final Temporary tmp = targets.get(i);
 				final ArrayList<AbstractInsnNode> block = targets.get(i).getContiguousBlockSorted();
-				if(block == null){
-					targets.get(i).getContiguousBlockSorted();
-				}
 				
 				final ArrayList<Temporary> criticalTemporaries = tmp.getCriticalTemporaries();
 				if(r.nextDouble() <= RATE_OF_STACK_MANIPULATION){
