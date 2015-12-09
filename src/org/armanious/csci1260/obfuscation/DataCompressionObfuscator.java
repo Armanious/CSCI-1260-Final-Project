@@ -4,6 +4,8 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Random;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 import java.util.zip.ZipEntry;
@@ -43,6 +45,7 @@ public class DataCompressionObfuscator {
 			final ClassReader cr = new ClassReader(CLASS_LOADER_NAME);
 			final ClassNode classLoaderCn = new ClassNode();
 			cr.accept(classLoaderCn, 0);
+			final String nameOfInnerFile = String.valueOf(new Random().nextInt());
 			for(MethodNode mn : classLoaderCn.methods){
 				if(mn.name.equals("main")){
 					for(AbstractInsnNode ain = mn.instructions.getFirst(); ain != null; ain = ain.getNext()){
@@ -50,22 +53,27 @@ public class DataCompressionObfuscator {
 							final LdcInsnNode lin = (LdcInsnNode) ain;
 							if(lin.cst.equals("REPLACE ME WITH NAME OF MAIN CLASS")){
 								lin.cst = main_class;
+							}else if(lin.cst.equals("inner")){
+								lin.cst = String.valueOf(nameOfInnerFile);
 							}
 						}
 					}
 				}
 			}
 			
-			//TODO: Run StackManipulator and NameObfuscator obfuscations on this class itself
+			ArrayList<ClassNode> list = new ArrayList<>();
+			list.add(classLoaderCn);
+			DataManager secondaryDm = new DataManager(list);
+			ObfuscationManager.run(secondaryDm, "Il1", 8, false, null, true);
 			
-			final ClassWriter free = new ClassWriter(0);
+			final ClassWriter free = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
 			classLoaderCn.accept(free);
 			
 			final byte[] data = free.toByteArray();
 			
 			final Manifest manifest = new Manifest(new ByteArrayInputStream(("Manifest-Version: 1.0\n" +
-					"Created-By: 1.7.0_06\n"
-					+ "Main-Class: " + CLASS_LOADER_NAME + "\n").getBytes()));
+					"Created-By: " + System.getProperty("java.version") + "\n"
+					+ "Main-Class: " + classLoaderCn.name.replace('/','.') + "\n").getBytes()));
 			final File outputFile = new File(output_directory, "obfuscated.jar");
 			output_directory.mkdirs();
 			outputFile.createNewFile();
@@ -75,7 +83,7 @@ public class DataCompressionObfuscator {
 			jos.write(data, 0, data.length);
 			jos.closeEntry();
 			
-			jos.putNextEntry(new ZipEntry("inner"));
+			jos.putNextEntry(new ZipEntry(nameOfInnerFile));
 			final ZipOutputStream zos = new ZipOutputStream(jos);
 			for(ClassNode cn : dm.classes){
 				zos.putNextEntry(new ZipEntry(cn.name.replace('/', '.')));

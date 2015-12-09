@@ -1,34 +1,29 @@
 package org.armanious.csci1260.obfuscation;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Comparator;
 import java.util.List;
 import java.util.ListIterator;
-import java.util.Map.Entry;
 import java.util.Random;
-import java.util.TreeMap;
 
 import org.armanious.csci1260.DataManager;
-import org.armanious.csci1260.DataManager.InvokeSpecialTemporary;
-import org.armanious.csci1260.DataManager.MethodInformation;
-import org.armanious.csci1260.DataManager.Temporary;
 import org.armanious.csci1260.JavaStack;
+import org.armanious.csci1260.MethodInformation;
 import org.armanious.csci1260.Tuple;
+import org.armanious.csci1260.temporaries.InvokeSpecialTemporary;
+import org.armanious.csci1260.temporaries.Temporary;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
-public class StackManipulatorBeta implements Opcodes {
+public class StackManipulator implements Opcodes {
 
 	private static final double RATE_OF_STACK_MANIPULATION = 0.2500;
 
 	private final DataManager dm;
 
-	public StackManipulatorBeta(DataManager dm){
+	public StackManipulator(DataManager dm){
 		this.dm = dm;
 	}
 
@@ -36,58 +31,49 @@ public class StackManipulatorBeta implements Opcodes {
 		int count = 0;
 		int possibilityCount = 0;
 		for(MethodInformation mi : dm.methodInformations.values()){
-			final Temporary[] tmps = mi.temporaries.values().toArray(new Temporary[mi.temporaries.size()]);
-			@SuppressWarnings("unchecked") //sigh runtime type erasure
-			final ArrayList<AbstractInsnNode>[] blocks = (ArrayList<AbstractInsnNode>[]) new ArrayList[tmps.length];
-			final Comparator<ArrayList<AbstractInsnNode>> descendingComparator = (A,B)->(B == null ? -1 : B.size()) - (A == null ? -1 : A.size());
-			for(int i = 0; i < tmps.length; i++){
-				final Temporary tmp = tmps[i];
-				final ArrayList<AbstractInsnNode> block = tmp.getContiguousBlockSorted();
-				if(block == null) continue;
-
-				int index = Arrays.binarySearch(blocks, block, descendingComparator);
-				if(index < 0) index = ~index;
-
-				System.arraycopy(blocks, index, blocks, index + 1, blocks.length - index - 1);
-				blocks[index] = block;
-				System.arraycopy(tmps, index, tmps, index + 1, tmps.length - index - 1);
-				tmps[index] = tmp;
-			}
-
-			for(int i = 0; i < blocks.length; i++){
-				final ArrayList<AbstractInsnNode> block = blocks[i];
-				if(block == null) continue;
-
-				final int start = block.get(0).getIndex();
-				final int end = block.get(block.size() - 1).getIndex();
-
-				for(int j = i + 1; j < blocks.length; j++){
-					final ArrayList<AbstractInsnNode> list2 = blocks[j];
-					if(list2 == null) continue;
-
-					final int start2 = list2.get(0).getIndex();
-					final int end2 = list2.get(list2.size() - 1).getIndex();
-
-					if((start2 >= start && start2 <= end) || (end2 >= start || end2 <= end)){
-						//make sure they are non-overlapping; i.e. select the temporaries with
-						//the largest size of contiguous instructions and remove the temporaries
-						//that interfere with it (may or may not be an operand)
-
-						blocks[j] = null;
-						tmps[j] = null;
-						//allowing such overlap breaks the LinkedList because there will
-						// **many** circular connections of ~3 instructions
+			
+			ArrayList<Temporary> targets = new ArrayList<>();
+			for(Temporary t : mi.temporaries.values()){
+				if(t.getDeclaration() == null) continue;
+				ArrayList<AbstractInsnNode> block = t.getContiguousBlockSorted();
+				if(block == null){
+					continue;
+				}
+				if(block.size() < 3){
+					continue;
+				}
+				if(block.get(0).getIndex() < 0){
+					continue;
+				}
+				if(targets.contains(t)) continue;
+				ListIterator<Temporary> targetsIter = targets.listIterator();
+				boolean addNew = true;
+				while(targetsIter.hasNext()){
+					if(targetsIter.next().getCriticalTemporaries().contains(t)){
+						addNew = false;
+						break;
 					}
 				}
+				if(addNew){
+					int start = block.get(0).getIndex();
+					int end = block.get(block.size() - 1).getIndex();
+					ListIterator<Temporary> iter = targets.listIterator();
+					while(iter.hasNext()){
+						ArrayList<AbstractInsnNode> block2 = iter.next().getContiguousBlockSorted();
+						int start2 = block2.get(0).getIndex();
+						int end2 = block2.get(block2.size() - 1).getIndex();
+						if(start2 >= start && end2 <= end){
+							iter.remove();
+						}
+					}
+					targets.add(t);
+				}
 			}
-
-			//note: we could merge this loop with the previous and maintain functionality,
-			//but separating the two loops maintains readability
-			for(int i = 0; i < blocks.length; i++){
-				final ArrayList<AbstractInsnNode> block = blocks[i];
-				if(block == null) continue;
-				final Temporary tmp = tmps[i];
-
+			
+			for(int i = 0; i < targets.size(); i++){
+				final Temporary tmp = targets.get(i);
+				final ArrayList<AbstractInsnNode> block = targets.get(i).getContiguousBlockSorted();
+				
 				final ArrayList<Temporary> criticalTemporaries = tmp.getCriticalTemporaries();
 				if(r.nextDouble() <= RATE_OF_STACK_MANIPULATION){
 					count++;
@@ -109,72 +95,6 @@ public class StackManipulatorBeta implements Opcodes {
 
 	}
 
-	@SuppressWarnings("unused")
-	@Deprecated
-	private void obfuscate_bugged(){
-		int totalCount = 0;
-		for(MethodInformation mi : dm.methodInformations.values()){
-			String name = dm.methodNodeToOwnerMap.get(mi.mn).name + "." + mi.mn.name + mi.mn.desc;
-
-			boolean printed = false;
-			Collection<Temporary> tmps = mi.temporaries.values();
-			TreeMap<ArrayList<AbstractInsnNode>, Temporary> goodTargets = new TreeMap<>((a1,a2)->a1.size()-a2.size());
-			for(Temporary tmp : tmps){
-				ArrayList<AbstractInsnNode> block = tmp.getContiguousBlockSorted();
-				if(block != null && block.size() >= 3){
-					goodTargets.put(block, tmp);
-				}
-			}
-			/*
-			 * !!! Somehow, treeList.entrySet().toArray() mixes up keys and values
-			 * Wasted so much time debugging something that was a flaw in the standard library -_-
-			 */
-			@SuppressWarnings("unchecked")
-			Entry<ArrayList<AbstractInsnNode>, Temporary>[] entries = (Entry<ArrayList<AbstractInsnNode>, Temporary>[]) goodTargets.entrySet().toArray(new Entry[goodTargets.size()]);
-
-			for(int i = 0; i < entries.length; i++){
-				ArrayList<AbstractInsnNode> list = entries[i].getValue().getContiguousBlockSorted();
-				if(!list.equals(entries[i].getKey())){
-					System.err.println("This is the source of error");
-				}
-			}
-
-			for(int i = 0; i < goodTargets.size(); i++){
-				final ArrayList<AbstractInsnNode> list = entries[i].getKey();
-				final int start = list.get(0).getIndex();
-				final int end = list.get(list.size() - 1).getIndex();
-				for(int j = i + 1; j < entries.length; j++){
-					final ArrayList<AbstractInsnNode> list2 = entries[j].getKey();
-					final int start2 = list2.get(0).getIndex();
-					final int end2 = list2.get(list2.size() - 1).getIndex();
-					if((start2 >= start && start2 <= end) || (end2 >= start || end2 <= end)){
-						//make sure they are non-overlapping; i.e. select the temporaries with
-						//the largest size of contiguous instructions and remove the temporaries
-						//that interfere with it (may or may not be an operand)
-						goodTargets.remove(entries[j].getKey());
-					}
-				}
-			}
-
-			for(Entry<ArrayList<AbstractInsnNode>, Temporary> target : goodTargets.entrySet()){
-				//if(target.getValue() instanceof FieldTemporary){
-				if(!printed){
-					printed = true;
-					System.out.println("\n\n" + name);
-				}
-				totalCount++;
-				System.out.println("Target: " + target.getValue());
-				//manipulateStackSwappingTemporaryOperands(mi, target.getValue(), target.getValue().getCriticalTemporaries(), target.getKey());
-				System.err.println(target.getValue());
-				manipulateStackBeforeAndAfterTemporary(mi, target.getValue(), target.getValue().getCriticalTemporaries(), target.getKey());
-				//}
-			}
-
-		}
-
-		System.out.println("Total count of targets: " + totalCount);
-	}
-
 	private static void add(InsnList list, int...opcodes){
 		for(int opcode : opcodes){
 			list.add(new InsnNode(opcode));
@@ -186,7 +106,7 @@ public class StackManipulatorBeta implements Opcodes {
 	private static Tuple<InsnList, Tuple<Integer, Integer>> generateInsertion(){
 		//TODO copy random parts of code from other parts of the project?
 		final InsnList toReturn = new InsnList();
-		final int sizeOfReturn = r.nextInt(3);
+		final int sizeOfReturn = 1;//r.nextInt(3);
 		int maxStackIncrement;
 		switch(sizeOfReturn){
 		case 0:
@@ -255,9 +175,13 @@ public class StackManipulatorBeta implements Opcodes {
 		if(toInsertBefore.val2.val2 > mi.mn.maxStack - stackAfter.size()){
 			mi.mn.maxStack += toInsertBefore.val2.val2 - (mi.mn.maxStack - stackBefore.size());
 		}
-
+	//	System.out.println("\n\nBefore:");
+		//printInstructions(mi);
 		mi.mn.instructions.insertBefore(block.get(0), toInsertBefore.val1);
 		mi.mn.instructions.insert(block.get(block.size() - 1), toAddAfter);
+	//	System.out.println("\nAfter:");
+	//	printInstructions(mi);
+	//	System.out.println("\n\n");
 	}
 
 	private int sizeBetweenInclusive(ArrayList<Temporary> critTemporaries, int f, int s){
@@ -453,7 +377,7 @@ public class StackManipulatorBeta implements Opcodes {
 		ListIterator<Integer> iter = possibilities.listIterator();
 		while(iter.hasNext()){
 			int next = iter.next();
-			if(criticalTemporaries.get(next).getContiguousBlockSorted() == null){
+			if(criticalTemporaries.get(next).getDeclaration() == null || criticalTemporaries.get(next).getContiguousBlockSorted() == null){
 				iter.remove();
 			}
 		}
@@ -487,7 +411,7 @@ public class StackManipulatorBeta implements Opcodes {
 				iter.remove();
 				continue;
 			}
-			if(criticalTemporaries.get(firstIndex + possibility).getContiguousBlockSorted() == null){
+			if(criticalTemporaries.get(firstIndex + possibility).getDeclaration() == null || criticalTemporaries.get(firstIndex + possibility).getContiguousBlockSorted() == null){
 				iter.remove();
 				continue;
 			}

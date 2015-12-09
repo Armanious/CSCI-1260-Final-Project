@@ -6,13 +6,13 @@ import java.lang.reflect.Modifier;
 import java.util.Random;
 
 import org.armanious.csci1260.DataManager;
+import org.armanious.csci1260.MethodInformation;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
-import org.objectweb.asm.tree.FrameNode;
 import org.objectweb.asm.tree.IincInsnNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.InsnNode;
@@ -27,9 +27,6 @@ import org.objectweb.asm.tree.VarInsnNode;
 import org.objectweb.asm.util.ASMifier;
 import org.objectweb.asm.util.TraceClassVisitor;
 
-//TODO add FrameNode instructions to injected bytecode and change the projects output ClassWriter
-//so that it doesnt calculate Frames; and then youll be able to run the ExceptionBlockObfuscator
-//with no problems
 public class StringLiteralEncryption {
 	
 	public static void main(String...args) throws IOException{
@@ -39,6 +36,7 @@ public class StringLiteralEncryption {
 		cr.accept(cv, 0);
 	}
 
+	//to look at bytecode equivalent
 	public static String decipher(String s){
 		final char[] arr = s.toCharArray();
 		for(int i = 0; i < arr.length; i++){
@@ -168,7 +166,7 @@ public class StringLiteralEncryption {
 				isOwnerInterface = (cn.access & Opcodes.ACC_INTERFACE) != 0;
 				String name;
 				while(true){
-					name = "peekaboo" + random.nextInt();
+					name = "_" + random.nextInt();
 					if(cn.getMethodNode(name, decipherDesc) == null){
 						break;
 					}
@@ -180,7 +178,7 @@ public class StringLiteralEncryption {
 				insertInstructions(insertedMethodNode);
 				
 				dm.methodNodeToOwnerMap.put(insertedMethodNode, cn);
-				dm.methodInformations.put(insertedMethodNode, dm.new MethodInformation(insertedMethodNode));
+				dm.methodInformations.put(insertedMethodNode, new MethodInformation(dm, insertedMethodNode));
 			}
 			return new MethodInsnNode(Opcodes.INVOKESTATIC, decipherMethodOwner, decipherMethodName, decipherDesc, isOwnerInterface);
 		}

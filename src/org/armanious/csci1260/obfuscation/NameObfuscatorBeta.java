@@ -14,11 +14,11 @@ import java.util.Map;
 import java.util.Random;
 
 import org.armanious.csci1260.DataManager;
-import org.armanious.csci1260.DataManager.ConstantTemporary;
-import org.armanious.csci1260.DataManager.MethodInvocationTemporary;
-import org.armanious.csci1260.DataManager.Temporary;
 import org.armanious.csci1260.JavaStack;
 import org.armanious.csci1260.Tuple;
+import org.armanious.csci1260.temporaries.ConstantTemporary;
+import org.armanious.csci1260.temporaries.MethodInvocationTemporary;
+import org.armanious.csci1260.temporaries.Temporary;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -37,7 +37,7 @@ import org.objectweb.asm.tree.MultiANewArrayInsnNode;
 import org.objectweb.asm.tree.TryCatchBlockNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 
-public class NameObfuscatorBeta extends Obfuscator {
+public class NameObfuscatorBeta {
 
 	private final DataManager dm;
 
@@ -51,10 +51,8 @@ public class NameObfuscatorBeta extends Obfuscator {
 	private final Map<String, String> fieldNameRemapping;
 	private final Map<String, String> methodNameRemapping;
 
-	public NameObfuscatorBeta(DataManager dm, ObfuscationManager manager,
-			String namePattern, int nameLength, boolean preservePackageStructure,
-			File outputFileForObfuscationMap) {
-		super(manager);
+	public NameObfuscatorBeta(DataManager dm, String namePattern, int nameLength,
+			boolean preservePackageStructure, File outputFileForObfuscationMap) {
 		this.dm = dm;
 		ong = new ObfuscatedNameGenerator(namePattern, nameLength);
 		this.preservePackageStructure = preservePackageStructure;
@@ -69,7 +67,7 @@ public class NameObfuscatorBeta extends Obfuscator {
 
 	private void populatePackageNameRemapping(){
 		ong.reset();
-		for(ClassNode cn : om.getClassNodes()){
+		for(ClassNode cn : dm.classes){
 			int lastIdxOfSlash = cn.name.lastIndexOf('/');
 			if(lastIdxOfSlash == -1)
 				continue;
@@ -98,7 +96,7 @@ public class NameObfuscatorBeta extends Obfuscator {
 	private void populateClassNameRemapping(){
 		ong.reset();
 		@SuppressWarnings("unchecked")
-		ArrayList<ClassNode> clone = (ArrayList<ClassNode>) om.getClassNodes().clone();
+		ArrayList<ClassNode> clone = (ArrayList<ClassNode>) dm.classes.clone();
 		clone.sort((c1, c2) -> c1.name.length() - c2.name.length());
 		//this ensures we visit outermost classes first (because an inner class's
 		//name's length will ALWAYS be greater than the outer class's name's length)
@@ -134,13 +132,13 @@ public class NameObfuscatorBeta extends Obfuscator {
 	}
 
 	private void populateFieldNameRemapping(){
-		for(ClassNode cn : om.getClassNodes()){
+		for(ClassNode cn : dm.classes){
 			ong.reset();
 
 			String superName = cn.superName;
 			while(superName != null){
 				ClassNode superClassNode = null;
-				for(ClassNode nextSuper : om.getClassNodes()){
+				for(ClassNode nextSuper : dm.classes){
 					if(nextSuper.name.equals(superName)){
 						superClassNode = nextSuper;
 						break;
@@ -184,7 +182,7 @@ public class NameObfuscatorBeta extends Obfuscator {
 	}
 
 	private void populateMethodNameRemapping(){
-		for(ClassNode cn : om.getClassNodes()){
+		for(ClassNode cn : dm.classes){
 			ong.reset();
 
 			String[] toSearchSupers = cn.interfaces.toArray(new String[cn.interfaces.size() + 1]);
@@ -192,7 +190,7 @@ public class NameObfuscatorBeta extends Obfuscator {
 			Arrays.sort(toSearchSupers); //for binary search later
 			otherOuter: for(String superName : toSearchSupers){
 				outer: while(superName != null){
-					for(ClassNode superCnPossibility : om.getClassNodes()){
+					for(ClassNode superCnPossibility : dm.classes){
 						if(superName.equals(superCnPossibility.name)){
 
 
@@ -251,10 +249,6 @@ public class NameObfuscatorBeta extends Obfuscator {
 
 		boolean madeChange = true;
 		while(madeChange){
-			//TODO very miniscule chance of method name collisions is possible at this point
-			//even if there is a collision, there's an even smaller chance that the two methods
-			//will have the same parameters
-			//If that's the case, though, that's a problem; we need to fix it.
 			madeChange = false;
 			for(String key : methodNameRemapping.keySet()){
 				String obfuscatedName = methodNameRemapping.get(key);
@@ -350,12 +344,11 @@ public class NameObfuscatorBeta extends Obfuscator {
 		}
 		return null;
 	}
-
-	@Override
+	
 	public void obfuscate() {
 		fillObfuscationMaps();
 
-		for(ClassNode cn : om.getClassNodes()){
+		for(ClassNode cn : dm.classes){
 			String deobfuscatedName = cn.name; //for use in fieldNameRemapping and methodNameRemapping
 			String obfuscatedPackage = obfuscatePackage(cn.name);
 			cn.name = obfuscatedPackage + classNameRemapping.get(cn.name);
@@ -564,7 +557,6 @@ public class NameObfuscatorBeta extends Obfuscator {
 								
 							}
 						}
-						//TODO
 						break;
 					case AbstractInsnNode.FRAME:
 						FrameNode fn = (FrameNode) ain;

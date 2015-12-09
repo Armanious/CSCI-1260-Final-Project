@@ -39,15 +39,13 @@ public class DeadCodeRemover {
 						if(ain.getOpcode() == Opcodes.POP){
 							if(ain.getPrevious().getOpcode() == Opcodes.ILOAD || 
 									ain.getPrevious().getOpcode() == Opcodes.FLOAD || 
-									ain.getPrevious().getOpcode() == Opcodes.ALOAD){
+									ain.getPrevious().getOpcode() == Opcodes.ALOAD ||
+									ain.getPrevious().getOpcode() == Opcodes.LLOAD){
 								mn.instructions.remove(ain.getPrevious());
 								mn.instructions.remove(ain);
 								changed = true;
 							}
 						}else if(ain.getOpcode() == Opcodes.POP2){
-							if(ain.getPrevious() == null){
-								System.err.println(cn.name + "." + mn.name + mn.desc + "\n\tInstruction " + ain.getIndex());
-							}
 							if(ain.getPrevious().getOpcode() == Opcodes.DLOAD ||
 									ain.getPrevious().getOpcode() == Opcodes.LLOAD){
 								mn.instructions.remove(ain.getPrevious());

@@ -12,14 +12,11 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
-import java.util.Stack;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 import java.util.zip.ZipEntry;
-
-import javax.swing.JOptionPane;
 
 import org.armanious.csci1260.obfuscation.DataCompressionObfuscator;
 import org.armanious.csci1260.obfuscation.ObfuscationManager;
@@ -31,37 +28,27 @@ import org.objectweb.asm.tree.ClassNode;
 
 public class Entry {
 
-	/*
-	 * 
+	public static void reset(){
+		output_directory = null;
+		run_output = false;
 
-		File runThrice = new File("lol.txt");
-		runThrice.delete();
-		if(!runThrice.exists()){
-			try(BufferedWriter out = new BufferedWriter(new FileWriter(runThrice))){
-				out.write("1");
-				out.flush();
-			}
-		}else{
-			int count = 0;
-			try(BufferedReader in = new BufferedReader(new FileReader(runThrice))){
-				count = Integer.parseInt(in.readLine());
-				if(count == 3){
-					return;
-				}else{
-					count = count + 1;
-				}
-			}
-			try(BufferedWriter out = new BufferedWriter(new FileWriter(runThrice))){
-				out.write(String.valueOf(count));
-				out.flush();
-			}
-		}
+		use_obfuscation = true;
+		name_pattern = "Il1";
+		name_length = 8;
+		//private static String name_overflow_pattern = "lI";
+		//private static boolean use_names_linearly = false;
+		preserve_package_structure = true;
+		name_remapping_file = null;
+		use_stack_manipulation = true;
+		compress_output = false;
+		main_class = null;
+		//private static boolean encrypt_output = true;
 
+		use_optimization = true;
+		inline_methods = true;
+		//privates static boolean flow_analysis_optimizations = true;
+	}
 
-	 */
-
-	
-	//TODO make exception obfuscator optional
 	public static void main(String[] args) throws IOException {
 
 		System.out.println(Arrays.toString(args));
@@ -146,7 +133,7 @@ public class Entry {
 
 		//not compressed or encrypted
 		//TODO remove me and ask if would like to override previous output
-		if(JOptionPane.showConfirmDialog(null, "Recursively delete " + output_directory + "?") == JOptionPane.YES_OPTION){
+		/*if(JOptionPane.showConfirmDialog(null, "Recursively delete " + output_directory + "?") == JOptionPane.YES_OPTION){
 			if(output_directory.exists()){
 				final Stack<File> toDelete = new Stack<>();
 				toDelete.push(output_directory);
@@ -166,7 +153,7 @@ public class Entry {
 					}
 				}
 			}
-		}
+		}*/
 
 
 		//dm.getClassNode("test/hi/Helllllooo").accept(new TraceClassVisitor(new PrintWriter(System.out)));
@@ -179,7 +166,7 @@ public class Entry {
 			if(name_remapping_file == null){
 				name_remapping_file = new File(output_directory, "obfuscation_map.txt");
 			}
-			ObfuscationManager.run(dm, classDatas, name_pattern, name_length, /*use_names_linearly,*/
+			ObfuscationManager.run(dm, name_pattern, name_length, /*use_names_linearly,*/
 					preserve_package_structure, name_remapping_file,
 					use_stack_manipulation);
 		}
@@ -196,7 +183,7 @@ public class Entry {
 			DataCompressionObfuscator.compressDataAndOutputJarFile(dm, main_class_reference.name, output_directory);
 		}else{
 			if(isJar){
-				outputClassesAsJar(dm, classDatas, file.getName().replace(".jar", "_obfuscated.jar"), output_directory);
+				outputClassesAsJar(dm, classDatas, main_class_reference, file.getName().replace(".jar", "_obfuscated.jar"), output_directory);
 			}else{
 				outputClasses(dm, classDatas, output_directory);
 			}
@@ -214,13 +201,15 @@ public class Entry {
 			MainInvoker mi = new MainInvoker(fileToUse,	main_class_reference == null ? null : main_class_reference.name);
 			mi.runMain();
 		}
+		reset();
 	}
 
-	private static void outputClassesAsJar(DataManager dm, ArrayList<ClassNode> classDatas, String jarName, File directory){
+	private static void outputClassesAsJar(DataManager dm, ArrayList<ClassNode> classDatas, ClassNode main_class_reference, String jarName, File directory){
 		try{
 			final Manifest manifest = new Manifest(new ByteArrayInputStream(("Manifest-Version: 1.0\n" +
-					"Created-By: 1.7.0_06\n"
-					+ "Main-Class: " + main_class + "\n").getBytes()));
+					"Created-By: 1.7.0_06\n" +
+					(main_class_reference == null ? "" : "Main-Class: " + main_class_reference.name.replace('/','.')) 
+					+ "\n").getBytes()));
 			final File outputFile = new File(directory, jarName);
 			directory.mkdirs();
 			outputFile.createNewFile();
@@ -285,7 +274,7 @@ public class Entry {
 	private static ClassNode getClassNodeFromData(byte[] data){
 		final ClassReader cr = new ClassReader(data);
 		final ClassNode cn = new ClassNode();
-		cr.accept(cn, /*ClassReader.SKIP_FRAMES | */ClassReader.SKIP_DEBUG);
+		cr.accept(cn, /*ClassReader.SKIP_FRAMES | ClassReader.SKIP_DEBUG*/0);
 		return cn;
 	}
 

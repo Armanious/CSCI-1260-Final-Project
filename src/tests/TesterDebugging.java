@@ -1,24 +1,26 @@
-package org.armanious.csci1260;
+package tests;
 
 import java.io.File;
 import java.io.IOException;
 
-public class Tester {
+import org.armanious.csci1260.Entry;
+
+public class TesterDebugging {
 	
 	public static void main(String...unused) throws IOException {
 		System.out.println("Testing");
 		//final String PROGRAM_TO_TEST_ON = "CSCI 1260 Tests";
 		//File f = new File(new File(System.getProperty("user.dir")).getParentFile(), PROGRAM_TO_TEST_ON + File.separator + "bin");
-		File f = new File("/Users/david/OneDrive/Documents/workspace/CSCI 1260 Tests/bin");
+		File f = new File("/Users/david/OneDrive/Documents/workspace/CSCI 1260 Final Project/bin/tests/personal");
 		String[] args = new String[]{f.toString(), 
 				"run_output=true",
 				"obfuscation.compress_output=true",
-				"obfuscation.main_class=test.hi.Hello",
+				"obfuscation.main_class=tests.personal.Hello",
 				"obfuscation.name_pattern=Il",
 				"obfuscation.name_length=10",
 				"obfuscation.use_obfuscation=true",
 				"optimization.use_optimization=true"};
-		//Entry.main(args);
+		Entry.main(args);
 		
 		f = new File("/Users/david/Desktop/battleship/battleship.jar");
 		args = new String[]{f.toString(), 
@@ -27,12 +29,12 @@ public class Tester {
 				"obfuscation.main_class=Battleship",
 				"obfuscation.name_pattern=CTGA",
 				"obfuscation.name_length=4",
-				"obfuscation.use_obfuscation=true",
+				"obfuscation.use_obfuscation=false",
 				"optimization.use_optimization=true"};
-		Entry.main(args);		
+		//Entry.main(args);		
 		
 		
-		System.exit(0);;
+		//System.exit(0);;
 		
 		f = new File("/Users/david/OneDrive/Documents/workspace/CSCI 1260 Final Project/bin");
 		args = new String[]{f.toString(), 
@@ -43,7 +45,7 @@ public class Tester {
 				"obfuscation.name_length=4",
 				"obfuscation.use_obfuscation=true",
 				"optimization.use_optimization=true"};
-		Entry.main(args);
+		//Entry.main(args);
 		
 		f = new File("/Users/david/OneDrive/Documents/workspace/For Andrew/bin");
 		args = new String[]{f.toString(), 
