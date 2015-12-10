@@ -53,7 +53,7 @@ public class CastOperatorTemporary extends Temporary {
 
 	@Override
 	public int getConstancyInternal() {
-		return tmp.getConstancyInternal();
+		return tmp.getConstancy();
 	}
 
 	@Override

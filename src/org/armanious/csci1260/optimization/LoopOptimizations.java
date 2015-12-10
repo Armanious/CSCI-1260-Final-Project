@@ -96,6 +96,14 @@ public class LoopOptimizations {
 		}
 
 	}
+	
+	private int localsOffset(ArrayList<Tuple<Temporary, BasicBlock>> invariantRedefinitionLocations, int endIndexExclusive){
+		int offset = 0;
+		for(int i = 0; i < endIndexExclusive; i++){
+			offset += invariantRedefinitionLocations.get(i).val1.getType().getSize();
+		}
+		return offset;
+	}
 
 	public void optimize(){
 		int numLoopInvariants = 0;
@@ -253,7 +261,7 @@ public class LoopOptimizations {
 							Temporary invariant = invariantInThisLoop.get(i);
 							
 							int indexOfLocalVariable = -1;
-
+							
 							for(int j = 0; j < invariantRedefinitionLocations.size(); j++){
 								if(invariant.equals(invariantRedefinitionLocations.get(j).val1)){
 									BasicBlock otherLoopsEntry = invariantRedefinitionLocations.get(j).val2;
@@ -272,13 +280,13 @@ public class LoopOptimizations {
 										}
 									}
 									
-									indexOfLocalVariable = mi.mn.maxLocals + j;
+									indexOfLocalVariable = mi.mn.maxLocals + localsOffset(invariantRedefinitionLocations, j);
 									break;
 								}
 							}
 							if(indexOfLocalVariable == -1){
 								//is not yet defined
-								indexOfLocalVariable = mi.mn.maxLocals + invariantRedefinitionLocations.size();
+								indexOfLocalVariable = mi.mn.maxLocals + localsOffset(invariantRedefinitionLocations, invariantRedefinitionLocations.size());
 								invariantRedefinitionLocations.add(new Tuple<>(invariant, loop.entry));
 							}
 							replace(mi.mn.instructions, invariant.getContiguousBlockSorted(), new VarInsnNode(DataManager.getLoadOpcode(invariant.getType()), indexOfLocalVariable));
@@ -291,15 +299,15 @@ public class LoopOptimizations {
 					//System.out.println();
 
 					for(Tuple<Temporary, BasicBlock> toInsertClone : invariantRedefinitionLocations){
-						int offsetOfLocalVariable = invariantRedefinitionLocations.indexOf(toInsertClone);
+						int offsetOfLocalVariable = localsOffset(invariantRedefinitionLocations, invariantRedefinitionLocations.indexOf(toInsertClone));
 						int indexOfLocalVariable = mi.mn.maxLocals + offsetOfLocalVariable;
-						//System.out.println("Inserting " + toInsertClone.val1 + " into local variable " + indexOfLocalVariable);
+						System.out.println("Inserting " + toInsertClone.val1 + " into local variable " + indexOfLocalVariable);
 
 						insertBefore(mi.mn.instructions, toInsertClone.val2, toInsertClone.val1.getContiguousBlockSorted(), new VarInsnNode(DataManager.getStoreOpcode(toInsertClone.val1.getType()), indexOfLocalVariable));
 						//System.out.println("Loop invariant at " + dm.methodNodeToOwnerMap.get(mi.mn).name + "." + mi.mn.name + mi.mn.desc + ": " + toInsertClone.val1 + ", now stored in " + indexOfLocalVariable + " at the beginning of " + toInsertClone.val2);
 					}
 					numLoopInvariants += invariantRedefinitionLocations.size();
-					mi.mn.maxLocals += invariantRedefinitionLocations.size();
+					mi.mn.maxLocals += localsOffset(invariantRedefinitionLocations, invariantRedefinitionLocations.size());
 
 					//System.out.println("\nAFTER INSERTIONS:");
 
@@ -310,7 +318,7 @@ public class LoopOptimizations {
 			}
 
 			if(numLoopInvariants > startingNumLoopInvariants){
-				//mi.recompute(); //recompute at the end of any modifications
+				mi.recompute(); //recompute at the end of any modifications
 			}
 		}
 

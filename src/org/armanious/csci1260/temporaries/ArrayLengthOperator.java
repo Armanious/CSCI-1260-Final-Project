@@ -18,7 +18,7 @@ public class ArrayLengthOperator extends Temporary {
 
 	@Override
 	public int getConstancyInternal() {
-		return arrayRef.getConstancyInternal();
+		return arrayRef.getConstancy();
 	}
 
 	@Override

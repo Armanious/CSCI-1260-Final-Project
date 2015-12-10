@@ -715,7 +715,7 @@ public class MethodInformation implements Opcodes {
 			JavaStack toRet = toMerge.clone();
 			System.err.println("Warning: cannot merge stacks with different sizes:\n\t" + prev + "\n\t" + toMerge + "\n");
 			for(int i = 0; i < toRet.size(); i++){
-				toRet.elementAt(i).forceConstancy(Temporary.NOT_CONSTANT);
+				toRet.elementAt(i).forceConstancy_(Temporary.NOT_CONSTANT);
 			}
 			return toMerge;
 		}
@@ -996,7 +996,7 @@ public class MethodInformation implements Opcodes {
 						popped = new Temporary[1];
 						Temporary valueToStore = popped[0] = stack.pop();
 						valueToStore.addReference(executingInstruction, mn);
-						valueToStore.forceConstancy(Temporary.NOT_CONSTANT);
+						//valueToStore.forceConstancy(Temporary.NOT_CONSTANT);
 						//valueToStore = valueToStore.cloneOnInstruction(executingInstruction);
 						locals.set(vvi.var, valueToStore);
 
@@ -1206,7 +1206,7 @@ public class MethodInformation implements Opcodes {
 					case IINC:
 						IincInsnNode iin = (IincInsnNode) executingInstruction;
 						Temporary localTemp = locals.get(iin.var);
-						localTemp.forceConstancy(Temporary.NOT_CONSTANT);
+						localTemp.forceConstancy_(Temporary.NOT_CONSTANT);
 						executingBlock.localsSetInBlock.put(iin.var, localTemp);
 						break;
 					case I2L:
@@ -1292,7 +1292,7 @@ public class MethodInformation implements Opcodes {
 						fin = (FieldInsnNode) executingInstruction;
 						popped = new Temporary[1];
 						valueToStore = popped[0] = stack.pop();
-						toPush = getFieldTemporary(executingInstruction, mn, null, fin.owner, fin.name, fin.desc, valueToStore);
+						//toPush = getFieldTemporary(executingInstruction, mn, null, fin.owner, fin.name, fin.desc, valueToStore);
 						fieldsWritten.put(executingInstruction, (FieldTemporary)toPush);
 						break;
 					case GETFIELD:
@@ -1307,7 +1307,7 @@ public class MethodInformation implements Opcodes {
 						popped = new Temporary[2];
 						valueToStore = popped[0] = stack.pop();
 						objectRef = popped[1] = stack.pop();
-						toPush = getFieldTemporary(executingInstruction, mn, objectRef, fin.owner, fin.name, fin.desc, valueToStore);
+						//toPush = getFieldTemporary(executingInstruction, mn, objectRef, fin.owner, fin.name, fin.desc, valueToStore);
 						fieldsWritten.put(executingInstruction, (FieldTemporary)toPush);
 						break;
 					case INVOKESPECIAL:

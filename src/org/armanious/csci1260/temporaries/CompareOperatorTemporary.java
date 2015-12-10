@@ -24,7 +24,7 @@ public class CompareOperatorTemporary extends Temporary {
 	}
 
 	public int getConstancyInternal() {
-		return rhs == null ? lhs.getConstancyInternal() : mergeConstancy(rhs, lhs);
+		return rhs == null ? lhs.getConstancy() : mergeConstancy(rhs, lhs);
 	}
 
 	@Override
