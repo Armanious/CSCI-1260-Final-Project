@@ -144,9 +144,7 @@ public class MethodInformation implements Opcodes {
 			return;
 
 		boolean isOfInterest = (dm.methodNodeToOwnerMap.get(mn).name + "." + mn.name + mn.desc).equals(DataManager.TO_DEBUG);
-		if(isOfInterest){
-			System.out.println("walk");
-		}
+		
 		DataManager.log.setLevel(isOfInterest ? Level.FINEST : DataManager.DEFAULT_LOG_LEVEL);
 
 		DataManager.log.finer("Computing " + dm.methodNodeToOwnerMap.get(mn).name + "." + mn.name + mn.desc);
@@ -304,9 +302,6 @@ public class MethodInformation implements Opcodes {
 				link(ain, curBlockDelimeter, mn.instructions.getLast(), BlockEdge.Type.NEVER);
 				curBlockDelimeter = null;
 			}
-		}
-		if(getFirstBlock() == null){
-			System.err.println("What in the fucking hell");
 		}
 	}
 
@@ -1292,7 +1287,7 @@ public class MethodInformation implements Opcodes {
 						fin = (FieldInsnNode) executingInstruction;
 						popped = new Temporary[1];
 						valueToStore = popped[0] = stack.pop();
-						//toPush = getFieldTemporary(executingInstruction, mn, null, fin.owner, fin.name, fin.desc, valueToStore);
+						toPush = getFieldTemporary(executingInstruction, mn, null, fin.owner, fin.name, fin.desc, valueToStore);
 						fieldsWritten.put(executingInstruction, (FieldTemporary)toPush);
 						break;
 					case GETFIELD:
@@ -1307,7 +1302,7 @@ public class MethodInformation implements Opcodes {
 						popped = new Temporary[2];
 						valueToStore = popped[0] = stack.pop();
 						objectRef = popped[1] = stack.pop();
-						//toPush = getFieldTemporary(executingInstruction, mn, objectRef, fin.owner, fin.name, fin.desc, valueToStore);
+						toPush = getFieldTemporary(executingInstruction, mn, objectRef, fin.owner, fin.name, fin.desc, valueToStore);
 						fieldsWritten.put(executingInstruction, (FieldTemporary)toPush);
 						break;
 					case INVOKESPECIAL:

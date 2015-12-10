@@ -27,6 +27,7 @@ import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.ClassNode;
 
 public class Entry {
+	
     public static void reset(){
 		output_directory = null;
 		run_output = false;
@@ -44,7 +45,6 @@ public class Entry {
 		//private static boolean encrypt_output = true;
 
 		use_optimization = true;
-		inline_methods = true;
 		//privates static boolean flow_analysis_optimizations = true;
 	}
     
@@ -159,7 +159,7 @@ public class Entry {
 
 		//System.exit(0);
 		if(use_optimization){
-			OptimizationManager.run(dm, classDatas, inline_methods);
+			OptimizationManager.run(dm, classDatas);
 		}
 		if(use_obfuscation){
 			if(name_remapping_file == null){
@@ -178,41 +178,37 @@ public class Entry {
 
 		//The name of the main_class may have been obfuscated; instead we keep track of the ClassNode
 
+		final File fileToUse;
+		
 		if(compress_output){
-			DataCompressionObfuscator.compressDataAndOutputJarFile(dm, main_class_reference.name, output_directory);
+			fileToUse = new File(output_directory, "obfuscated.jar");
+			DataCompressionObfuscator.compressDataAndOutputJarFile(dm, main_class_reference.name, fileToUse);
 		}else{
 			if(isJar){
-				outputClassesAsJar(dm, classDatas, main_class_reference, file.getName().replace(".jar", "_obfuscated.jar"), output_directory);
+				fileToUse = new File(output_directory, "obfuscated.jar");
+				outputClassesAsJar(dm, classDatas, main_class_reference, fileToUse);
 			}else{
+				fileToUse = output_directory;
 				outputClasses(dm, classDatas, output_directory);
 			}
 		}
 
 		if(run_output){
-			final File fileToUse;
-			if(compress_output){
-				fileToUse = new File(output_directory, file.getName().replace(".jar", "_obfuscated.jar"));
-			}else if(isJar){
-				fileToUse = new File(file.getName().replace(".jar", "_obfuscated.jar"));
-			}else{
-				fileToUse = output_directory;
-			}
 			MainInvoker mi = new MainInvoker(fileToUse,	main_class_reference == null ? null : main_class_reference.name);
 			mi.runMain();
 		}
 		reset();
 	}
 
-	private static void outputClassesAsJar(DataManager dm, ArrayList<ClassNode> classDatas, ClassNode main_class_reference, String jarName, File directory){
+	private static void outputClassesAsJar(DataManager dm, ArrayList<ClassNode> classDatas, ClassNode main_class_reference, File fileToUse){
 		try{
 			final Manifest manifest = new Manifest(new ByteArrayInputStream(("Manifest-Version: 1.0\n" +
 					"Created-By: 1.7.0_06\n" +
 					(main_class_reference == null ? "" : "Main-Class: " + main_class_reference.name.replace('/','.')) 
 					+ "\n").getBytes()));
-			final File outputFile = new File(directory, jarName);
-			directory.mkdirs();
-			outputFile.createNewFile();
-			final JarOutputStream jos = new JarOutputStream(new BufferedOutputStream(new FileOutputStream(outputFile)), manifest);
+			fileToUse.getParentFile().mkdirs();
+			fileToUse.createNewFile();
+			final JarOutputStream jos = new JarOutputStream(new BufferedOutputStream(new FileOutputStream(fileToUse)), manifest);
 			
 			for(ClassNode cn : classDatas){
 				jos.putNextEntry(new ZipEntry(cn.name.replace('/', '.').concat(".class")));
@@ -233,8 +229,8 @@ public class Entry {
 			jos.flush();
 			jos.close();
 		}catch(IOException e){
-			System.err.println("Error saving " + jarName + ". Attempting to save in directory now.");
-			outputClasses(dm, classDatas, directory);
+			System.err.println("Error saving " + fileToUse.getName() + ". Attempting to save in directory now.");
+			outputClasses(dm, classDatas, fileToUse.getParentFile());
 		}
 	}
 
@@ -399,16 +395,6 @@ public class Entry {
 				if(!boolTmp && !value.equalsIgnoreCase("false")) printUsage();
 				use_optimization = boolTmp;
 				break;
-			case "optimization.inline_methods":
-				boolTmp = value.equalsIgnoreCase("true");
-				if(!boolTmp && !value.equalsIgnoreCase("false")) printUsage();
-				inline_methods = boolTmp;
-				break;
-				/*case "optimization.flow_analysis_optimizations":
-				boolTmp = value.equalsIgnoreCase("true");
-				if(!boolTmp && !value.equalsIgnoreCase("false")) printUsage();
-				flow_analysis_optimizations = boolTmp;
-				break;*/
 			default:
 				printUsage();
 			}
@@ -431,7 +417,6 @@ public class Entry {
 	//private static boolean encrypt_output = true;
 
 	private static boolean use_optimization = true;
-	private static boolean inline_methods = true;
 	//privates static boolean flow_analysis_optimizations = true;
 
 	private static void printUsage(){
@@ -454,7 +439,6 @@ public class Entry {
 				//+ "\tobfuscation.encrypt_output={true|false}\n"
 				+ "\n"
 				+ "\toptimization.use_optimization={true|false}\n"
-				+ "\toptimization.inline_methods={true|false}\n"
 				//+ "\toptimization.flow_analysis_optimizations={true|false}");
 				);
 		System.exit(1);
@@ -478,7 +462,6 @@ public class Entry {
 						//+ "\tobfuscation.encrypt_output=" + encrypt_output + "\n"
 						+ "\n"
 						+ "\toptimization.use_optimization=" + use_optimization + "\n"
-						+ "\toptimization.inline_methods=" + inline_methods + "\n"
 						//+ "\toptimization.flow_analysis_optimizations=" + flow_analysis_optimizations + "\n"
 				);
 		System.exit(1);

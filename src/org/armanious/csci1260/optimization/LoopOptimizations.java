@@ -301,7 +301,7 @@ public class LoopOptimizations {
 					for(Tuple<Temporary, BasicBlock> toInsertClone : invariantRedefinitionLocations){
 						int offsetOfLocalVariable = localsOffset(invariantRedefinitionLocations, invariantRedefinitionLocations.indexOf(toInsertClone));
 						int indexOfLocalVariable = mi.mn.maxLocals + offsetOfLocalVariable;
-						System.out.println("Inserting " + toInsertClone.val1 + " into local variable " + indexOfLocalVariable);
+						//System.out.println("Inserting " + toInsertClone.val1 + " into local variable " + indexOfLocalVariable);
 
 						insertBefore(mi.mn.instructions, toInsertClone.val2, toInsertClone.val1.getContiguousBlockSorted(), new VarInsnNode(DataManager.getStoreOpcode(toInsertClone.val1.getType()), indexOfLocalVariable));
 						//System.out.println("Loop invariant at " + dm.methodNodeToOwnerMap.get(mi.mn).name + "." + mi.mn.name + mi.mn.desc + ": " + toInsertClone.val1 + ", now stored in " + indexOfLocalVariable + " at the beginning of " + toInsertClone.val2);

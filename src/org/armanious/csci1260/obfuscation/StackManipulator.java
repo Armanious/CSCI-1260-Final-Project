@@ -106,7 +106,7 @@ public class StackManipulator implements Opcodes {
 	private static Tuple<InsnList, Tuple<Integer, Integer>> generateInsertion(){
 		//TODO copy random parts of code from other parts of the project?
 		final InsnList toReturn = new InsnList();
-		final int sizeOfReturn = 1;//r.nextInt(3);
+		final int sizeOfReturn = r.nextInt(3);
 		int maxStackIncrement;
 		switch(sizeOfReturn){
 		case 0:

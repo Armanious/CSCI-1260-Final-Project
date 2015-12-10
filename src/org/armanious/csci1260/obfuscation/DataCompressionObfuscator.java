@@ -33,7 +33,7 @@ public class DataCompressionObfuscator {
 		CLASS_LOADER_NAME = name;
 	}
 	
-	public static void compressDataAndOutputJarFile(final DataManager dm, String main_class, File output_directory) {
+	public static void compressDataAndOutputJarFile(final DataManager dm, String main_class, File outputFile) {
 		try {
 			main_class = main_class.replace('/', '.'); //convert to binary
 			/*ClassWriter cw = new ClassWriter(0);
@@ -74,8 +74,8 @@ public class DataCompressionObfuscator {
 			final Manifest manifest = new Manifest(new ByteArrayInputStream(("Manifest-Version: 1.0\n" +
 					"Created-By: " + System.getProperty("java.version") + "\n"
 					+ "Main-Class: " + classLoaderCn.name.replace('/','.') + "\n").getBytes()));
-			final File outputFile = new File(output_directory, "obfuscated.jar");
-			output_directory.mkdirs();
+			
+			outputFile.getParentFile().mkdirs();
 			outputFile.createNewFile();
 			final JarOutputStream jos = new JarOutputStream(new FileOutputStream(outputFile), manifest);
 			

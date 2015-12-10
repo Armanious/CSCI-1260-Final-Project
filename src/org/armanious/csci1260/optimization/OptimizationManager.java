@@ -9,7 +9,7 @@ public final class OptimizationManager {
 	
 	private OptimizationManager(){}
 	
-	public static void run(DataManager dm, ArrayList<ClassNode> classes, boolean inline_methods){
+	public static void run(DataManager dm, ArrayList<ClassNode> classes){
 		new LoopOptimizations(dm).optimize();
 		new ConstantFolder(dm).optimize();
 		//new RedundantComputationRemover(dm).optimize(); //TODO implement
