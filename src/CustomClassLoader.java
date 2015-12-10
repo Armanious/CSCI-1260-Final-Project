@@ -13,7 +13,7 @@ public class CustomClassLoader extends ClassLoader {
 	public static void main(String[] args) throws IOException, ReflectiveOperationException {
 		InputStream resource = ClassLoader.getSystemResourceAsStream("inner");
 		if(resource == null){
-			System.err.println("Can't find inner: " + ClassLoader.getSystemClassLoader().getClass());
+			System.err.println("Unable to find class data: " + ClassLoader.getSystemClassLoader().getClass());
 			System.exit(1);
 		}
 		CustomClassLoader ccl = new CustomClassLoader(new ZipInputStream(new BufferedInputStream(resource)));

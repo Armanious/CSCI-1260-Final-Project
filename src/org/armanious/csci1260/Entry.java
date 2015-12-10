@@ -10,7 +10,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -49,9 +48,6 @@ public class Entry {
 	}
     
 	public static void main(String[] args) throws IOException {
-
-		System.out.println(Arrays.toString(args));
-		
 		if(args == null || args.length == 0) printUsage();
 		if(args[0].equalsIgnoreCase("-defaults")) printDefaults();
 		final File file = new File(args[0]);

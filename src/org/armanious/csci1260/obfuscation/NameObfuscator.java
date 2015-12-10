@@ -37,7 +37,7 @@ import org.objectweb.asm.tree.MultiANewArrayInsnNode;
 import org.objectweb.asm.tree.TryCatchBlockNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 
-public class NameObfuscatorBeta {
+public class NameObfuscator {
 
 	private final DataManager dm;
 
@@ -51,7 +51,7 @@ public class NameObfuscatorBeta {
 	private final Map<String, String> fieldNameRemapping;
 	private final Map<String, String> methodNameRemapping;
 
-	public NameObfuscatorBeta(DataManager dm, String namePattern, int nameLength,
+	public NameObfuscator(DataManager dm, String namePattern, int nameLength,
 			boolean preservePackageStructure, File outputFileForObfuscationMap) {
 		this.dm = dm;
 		ong = new ObfuscatedNameGenerator(namePattern, nameLength);
@@ -348,6 +348,8 @@ public class NameObfuscatorBeta {
 	public void obfuscate() {
 		fillObfuscationMaps();
 
+		int reflectionSupport = 0;
+		
 		for(ClassNode cn : dm.classes){
 			String deobfuscatedName = cn.name; //for use in fieldNameRemapping and methodNameRemapping
 			String obfuscatedPackage = obfuscatePackage(cn.name);
@@ -442,7 +444,26 @@ public class NameObfuscatorBeta {
 						break;
 					case AbstractInsnNode.METHOD_INSN:
 						MethodInsnNode min = (MethodInsnNode)ain;
-						if(min.owner.equals("java/lang/Class")){
+						if(min.name.equals("findClass") || min.name.equals("loadClass") ||
+								min.name.equals("findLoadedClass") || min.name.equals("defineClass")){
+							//could be from ClassLoader
+							MethodInvocationTemporary mit = (MethodInvocationTemporary) dm.methodInformations.get(mn).temporaries.get(min);
+							Temporary[] args = mit.getArgs();
+							Temporary classLoaderInstance = args[0];
+							Type desiredType = Type.getType(ClassLoader.class);
+							if(dm.getCommonSuperType(desiredType, classLoaderInstance.getType()).equals(desiredType)){
+								Temporary nameOfClass = args[1];
+								if(nameOfClass instanceof ConstantTemporary){
+									ConstantTemporary ct = (ConstantTemporary) nameOfClass;
+									String s = ((String) ct.getValue()).replace('.', '/');
+									String obfuscated = classNameRemapping.get(s);
+									if(obfuscated != null){
+										ct.setValue((obfuscatePackage(s) + obfuscated).replace('/', '.'));
+										reflectionSupport++;
+									}
+								}
+							}
+						}else if(min.owner.equals("java/lang/Class")){
 							if(min.name.equals("forName")){
 								final Tuple<JavaStack, Temporary[]> state = dm.methodInformations.get(mn).statePerInsn.get(ain.getPrevious());
 								if(state != null && state.val1 != null){
@@ -454,6 +475,7 @@ public class NameObfuscatorBeta {
 										String obfuscated = classNameRemapping.get(s);
 										if(obfuscated != null){
 											ct.setValue((obfuscatePackage(s) + obfuscated).replace('/', '.'));
+											reflectionSupport++;
 										}
 									}
 								}
@@ -470,6 +492,7 @@ public class NameObfuscatorBeta {
 											String obfuscatedMethodName = methodNameRemapping.get(unobfuscatedClassOwner + "." + methodName);
 											if(obfuscatedMethodName != null){
 												((ConstantTemporary)mit.getArgs()[1]).setValue(obfuscatedMethodName);
+												reflectionSupport++;
 											}
 										}
 									}
@@ -487,6 +510,7 @@ public class NameObfuscatorBeta {
 											String obfuscatedMethodName = fieldNameRemapping.get(unobfuscatedClassOwner + "." + methodName);
 											if(obfuscatedMethodName != null){
 												((ConstantTemporary)mit.getArgs()[1]).setValue(obfuscatedMethodName);
+												reflectionSupport++;
 											}
 										}
 									}
@@ -609,7 +633,9 @@ public class NameObfuscatorBeta {
 				}
 			}
 		}
-
+		if(reflectionSupport > 0){
+			System.out.println("Changed " + reflectionSupport + " reflection calls to reflect obfuscation.");
+		}
 		outputObfuscationMapToFile();
 	}
 

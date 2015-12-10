@@ -462,6 +462,19 @@ public class StackManipulator implements Opcodes {
 		int[][] toRandomize = STACK_RESTORATION_OPS[sizeBetweenInclusive][first.getType().getSize()][second.getType().getSize()];
 		if(toRandomize == null){
 			if(criticalTemporaries.get(firstIndex + 1).getType().getSize() == 2){
+				//desired: [1, 2-3, 4]
+				
+				//starting: [4, 2-3, 1]
+				//DUP_X2: [4, 1, 2-3, 1]
+				//POP: [4, 1, 2-3]
+				//DUP2_X2: [2-3, 4, 1, 2-3]
+				//POP2: [2-3, 4, 1]
+				//SWAP: [2-3, 1, 4]
+				//STORE 4 in VAR: [2-3, 1]
+				//DUP_X2: [1, 2-3, 1]
+				//POP: [1, 2-3]
+				//LOAD VAR: [1, 2-3, 4]
+				
 				//1 MID, size 2
 				final InsnList toAdd = new InsnList();
 				add(toAdd, DUP_X2, POP, DUP2_X2, POP2, SWAP);

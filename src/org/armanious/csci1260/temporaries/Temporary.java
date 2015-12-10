@@ -10,7 +10,6 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.MethodNode;
-import org.objectweb.asm.tree.VarInsnNode;
 
 public abstract class Temporary {
 
@@ -48,13 +47,12 @@ public abstract class Temporary {
 		return parentTemporary != null ? parentTemporary.getConstancy() : (overrideConstancy ? forcedConstancy : getConstancyInternal());
 	}
 
-	@Deprecated
-	public final void forceConstancy_(int forcedConstancy){
+	public final void forceConstancy(int forcedConstancy){
 		if(parentTemporary == null){
 			overrideConstancy = true;
 			this.forcedConstancy = forcedConstancy;
 		}else{
-			parentTemporary.forceConstancy_(forcedConstancy);
+			parentTemporary.forceConstancy(forcedConstancy);
 		}
 	}
 

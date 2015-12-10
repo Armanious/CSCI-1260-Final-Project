@@ -11,7 +11,7 @@ public final class ObfuscationManager {
 			boolean preserve_package_structure, File outputFileForNameRemapping,
 			boolean use_stack_manipulation){
 		
-		new NameObfuscatorBeta(dm, name_pattern, name_length, preserve_package_structure, outputFileForNameRemapping).obfuscate();
+		new NameObfuscator(dm, name_pattern, name_length, preserve_package_structure, outputFileForNameRemapping).obfuscate();
 		if(use_stack_manipulation){
 			new StackManipulator(dm).obfuscate();
 		}

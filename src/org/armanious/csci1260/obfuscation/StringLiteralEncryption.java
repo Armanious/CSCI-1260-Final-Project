@@ -45,7 +45,7 @@ public class StringLiteralEncryption {
 		return new String(arr);
 	}
 
-	private static final double RATE_OF_NEW_CIPHER = 0.150;
+	private static final double RATE_OF_NEW_CIPHER = 0.250;
 	private static final Random random = new Random();
 
 	private static final int MIN_K = Integer.MIN_VALUE;
@@ -207,14 +207,10 @@ public class StringLiteralEncryption {
 			final MethodNode[] methods = cn.methods.toArray(new MethodNode[cn.methods.size()]);
 			//to avoid ConcurrentModificationException if the selected class to add the decipher
 			//method just happens to be equal to cn as well, we convert the methods to an array
-			long last = System.currentTimeMillis();
 			for(MethodNode mn : methods){
 				if(Modifier.isAbstract(mn.access) || Modifier.isNative(mn.access)) continue;
 				boolean forceRetry = false;
 				for(AbstractInsnNode ain = mn.instructions.getFirst(); ain != null; ain = (forceRetry ? ain : ain.getNext())){
-					if(System.currentTimeMillis() - last >= 500){
-						System.err.println("DBUG");
-					}
 					if(ain instanceof LdcInsnNode){
 						forceRetry = false;
 						final LdcInsnNode lin = (LdcInsnNode) ain;
@@ -241,7 +237,6 @@ public class StringLiteralEncryption {
 						}
 					}
 				}
-				last = System.currentTimeMillis();
 			}
 		}
 		

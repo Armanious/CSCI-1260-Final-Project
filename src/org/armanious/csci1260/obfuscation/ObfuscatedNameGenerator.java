@@ -44,7 +44,7 @@ public final class ObfuscatedNameGenerator {
 		BigInteger value = BigInteger.valueOf(0);
 		for(int i = 0; i < name.length(); i++){
 			int pos = Arrays.binarySearch(validChars, name.charAt(i));
-			if(pos < 0){ //remember that we NEVER use validChars[0]
+			if(pos < 0){
 				System.err.println("Warning: name " + name + " is not valid.");
 				return;
 			}
@@ -57,6 +57,23 @@ public final class ObfuscatedNameGenerator {
 			//3456 / 10 = 345
 		}
 		used.add(value);
+	}
+	
+	private String convertBigIntegerToString(BigInteger value){
+		final char[] string = new char[length];
+		int idx = length - 1;
+		while(true){
+			string[idx] = validChars[value.mod(base).intValue()];
+			value = value.divide(base);
+			if(value.signum() == 0 || idx == 0){
+				break;
+			}
+			idx--;
+		}
+		while(idx != 0){ //pad beginning of String with the minimum value
+			string[--idx] = validChars[0];
+		}
+		return new String(string);
 	}
 	
 	public String getNext(){
@@ -75,20 +92,7 @@ public final class ObfuscatedNameGenerator {
 			}
 			BigInteger value = BigDecimal.valueOf(random.nextDouble()).multiply(maximumAsDecimal).toBigInteger();
 			if(used.add(value)){
-				final char[] string = new char[length];
-				int idx = length - 1;
-				while(true){
-					string[idx] = validChars[value.mod(base).intValue()];
-					value = value.divide(base);
-					if(value.signum() == 0 || idx == 0){
-						break;
-					}
-					idx--;
-				}
-				while(idx != 0){ //pad beginning of String with the minimum value
-					string[--idx] = validChars[0];
-				}
-				return new String(string);
+				return convertBigIntegerToString(value);
 			}
 		}
 	}

@@ -710,7 +710,7 @@ public class MethodInformation implements Opcodes {
 			JavaStack toRet = toMerge.clone();
 			System.err.println("Warning: cannot merge stacks with different sizes:\n\t" + prev + "\n\t" + toMerge + "\n");
 			for(int i = 0; i < toRet.size(); i++){
-				toRet.elementAt(i).forceConstancy_(Temporary.NOT_CONSTANT);
+				toRet.elementAt(i).forceConstancy(Temporary.NOT_CONSTANT);
 			}
 			return toMerge;
 		}
@@ -1201,7 +1201,7 @@ public class MethodInformation implements Opcodes {
 					case IINC:
 						IincInsnNode iin = (IincInsnNode) executingInstruction;
 						Temporary localTemp = locals.get(iin.var);
-						localTemp.forceConstancy_(Temporary.NOT_CONSTANT);
+						localTemp.forceConstancy(Temporary.NOT_CONSTANT);
 						executingBlock.localsSetInBlock.put(iin.var, localTemp);
 						break;
 					case I2L:

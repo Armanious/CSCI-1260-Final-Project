@@ -7,7 +7,7 @@ import java.util.stream.Stream;
 import org.armanious.csci1260.DataManager;
 import org.armanious.csci1260.MethodInformation;
 import org.armanious.csci1260.temporaries.ArrayInstanceTemporary;
-import org.armanious.csci1260.temporaries.ArrayLengthOperator;
+import org.armanious.csci1260.temporaries.ArrayLengthTemporary;
 import org.armanious.csci1260.temporaries.ArrayReferenceTemporary;
 import org.armanious.csci1260.temporaries.BinaryOperatorTemporary;
 import org.armanious.csci1260.temporaries.CastOperatorTemporary;
@@ -68,15 +68,13 @@ public class ConstantFolder {
 				o = null;
 			}else if(t instanceof ArrayInstanceTemporary){
 				o = null;
-			}else if(t instanceof ArrayLengthOperator){
-				o = resolveArrayLengthOperatorTemporary((ArrayLengthOperator)t);
+			}else if(t instanceof ArrayLengthTemporary){
+				o = resolveArrayLengthTemporary((ArrayLengthTemporary)t);
 			}else if(t instanceof InstanceofOperatorTemporary){
 				o = resolveInstanceOfOperatorTemporary((InstanceofOperatorTemporary)t);
 			}else if(t instanceof PhiTemporary){
 				o = null;
 			}
-
-
 			resolvedCache.put(t, o);
 		}
 		return o;
@@ -302,7 +300,7 @@ public class ConstantFolder {
 		return result;
 	}
 
-	private Object resolveArrayLengthOperatorTemporary(ArrayLengthOperator t){
+	private Object resolveArrayLengthTemporary(ArrayLengthTemporary t){
 		Temporary arrayInstance = t.arrayRef;
 		int dimensionToGetLengthOf = 0;
 		while(!(arrayInstance instanceof ArrayInstanceTemporary)){
@@ -319,13 +317,12 @@ public class ConstantFolder {
 	private Object resolveInstanceOfOperatorTemporary(InstanceofOperatorTemporary t){
 		Type objectType = t.objectRef.getType();
 		Type toCheck = t.toCheck;
-		System.err.println("Warning: InstanceofOperatorTemporary does not check against full class hierarchy.");
-		return objectType.equals(toCheck);
+		return toCheck == objectType;//(dm.getCommonSuperType(objectType, toCheck) == toCheck) ? 1 : 0;
 	}
 
 	private boolean canFold(Temporary markedConstant){
 		ArrayList<AbstractInsnNode> block = markedConstant.getContiguousBlockSorted();
-		return block != null && block.size() > 1 && resolve(markedConstant) != null;
+		return markedConstant.getType() != Type.VOID_TYPE && block != null && block.size() > 1 && resolve(markedConstant) != null;
 	}
 
 	private final HashMap<Integer, Integer> noOverlapCache = new HashMap<>();
@@ -349,14 +346,29 @@ public class ConstantFolder {
 		resolvedCache.clear();
 		noOverlapCache.clear();
 		mi.mn.instructions.get(0);
+		//clear caches and generate method instruction index to properly remove overlaps
 
 		Stream<Temporary> constantTemporaries = mi.temporaries.values().stream().filter((t) -> t.getConstancy() == Temporary.CONSTANT);
-		Stream<Temporary> foldable = constantTemporaries.filter(this::canFold);
-		Stream<Temporary> longestFirst = foldable.sorted((t1,t2) -> t2.getContiguousBlockSorted().size() - t1.getContiguousBlockSorted().size());
-		Stream<Temporary> noOverlap = longestFirst.filter(this::noOverlap);
+		//simply get all the temporaries marked as CONSTANT
 		
-		int countConstantsFoldedBefore = numConstantsFolded;		
+		Stream<Temporary> foldable = constantTemporaries.filter(this::canFold);
+		//filter the ones that are "foldable": has a contiguousBlock of length > 1, is not of Type VOID
+		//and maps to a constant value through the resolution scheme
+		
+		Stream<Temporary> longestFirst = foldable.sorted((t1,t2) -> t2.getContiguousBlockSorted().size() - t1.getContiguousBlockSorted().size());
+		//orders the stream from greatest length block to shortest length block
+		//this ensures we will be folding the most general form of each temporary; doing so enables
+		//folding complex expressions in a simple way using the preexisting framework
+		
+		Stream<Temporary> noOverlap = longestFirst.filter(this::noOverlap);
+		//KEY: calls noOverlap in descending order so that we select the most general Temporaries
+		//removes any overlapping Temporaries
+		
+		int countConstantsFoldedBefore = numConstantsFolded;	
 		noOverlap.forEach((t) -> foldConstant(mi, t));
+		//for each eligible temporary, simply fold the constant
+		
+		//Very readable!
 		
 		return numConstantsFolded > countConstantsFoldedBefore;
 	}
@@ -487,7 +499,6 @@ public class ConstantFolder {
 	public void optimize(){
 		for(MethodInformation mi : dm.methodInformations.values()){
 			if(optimize(mi)){
-				System.out.println("Recomputing " + dm.methodNodeToOwnerMap.get(mi.mn).name + "." + mi.mn.name + mi.mn.desc);
 				mi.recompute();
 			}
 		}

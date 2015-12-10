@@ -17,9 +17,6 @@ public class ArrayReferenceTemporary extends Temporary {
 
 	public ArrayReferenceTemporary(AbstractInsnNode decl, Temporary arrayRef, Temporary index) {
 		super(decl, computeArrayDereferenceType(arrayRef));
-		if(arrayRef instanceof ConstantTemporary && ((ConstantTemporary)arrayRef).value == null){
-			System.err.println("bpp");
-		}
 		this.arrayRef = arrayRef;
 		this.index = index;
 		arrayRef.addReference(decl, null);

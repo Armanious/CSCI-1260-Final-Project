@@ -17,7 +17,7 @@ public class ConstantTemporary extends Temporary {
 
 	public void setValue(Object newValue){
 		if(!(getDeclaration() instanceof LdcInsnNode)){
-			System.err.println("Warning: cannot set value of cloned ConstantTemporary.");
+			System.err.println("Warning: cannot set value of cloned ConstantTemporary or non-LDC instruction.");
 			return;
 		}
 		((LdcInsnNode)getDeclaration()).cst = newValue;

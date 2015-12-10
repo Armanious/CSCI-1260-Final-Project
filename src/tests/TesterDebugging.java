@@ -34,15 +34,14 @@ public class TesterDebugging {
 		Entry.main(args);		
 		
 		
-		//System.exit(0);;
 		
 		f = new File("/Users/david/OneDrive/Documents/workspace/CSCI 1260 Final Project/bin");
 		args = new String[]{f.toString(), 
 				"run_output=true",
 				"obfuscation.compress_output=false",
 				"obfuscation.main_class=org.armanious.csci1260.Entry",
-				"obfuscation.name_pattern=CTGA",
-				"obfuscation.name_length=4",
+				"obfuscation.name_pattern=Il",
+				"obfuscation.name_length=10",
 				"obfuscation.use_obfuscation=true",
 				"optimization.use_optimization=true"};
 		//Entry.main(args);
