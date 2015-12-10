@@ -486,7 +486,6 @@ public class ConstantFolder {
 
 				Object resolved = resolve(T);
 				if(resolved == null) continue;
-				//System.out.println("Working with constant at instruction " + T.getDeclaration().getIndex() + " (" + T + " == " + resolved + ")")
 				boolean addNew = true;
 				for(int i = 0; i < validTargets.size(); i++){
 					int storedBlockStart = validTargets.get(i).val1.get(0).getIndex();
@@ -528,6 +527,7 @@ public class ConstantFolder {
 				//System.out.println("Folded " + validTargets.size() + " constants in " + dm.methodNodeToOwnerMap.get(mn).name + "." + mn.name + mn.desc);
 				mi.recompute();
 			}
+
 		}
 		System.out.println("Folded " + numConstantsFolded + " constants.");
 	}

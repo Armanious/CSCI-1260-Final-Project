@@ -996,7 +996,6 @@ public class MethodInformation implements Opcodes {
 						popped = new Temporary[1];
 						Temporary valueToStore = popped[0] = stack.pop();
 						valueToStore.addReference(executingInstruction, mn);
-						
 						valueToStore.forceConstancy(Temporary.NOT_CONSTANT);
 						//valueToStore = valueToStore.cloneOnInstruction(executingInstruction);
 						locals.set(vvi.var, valueToStore);

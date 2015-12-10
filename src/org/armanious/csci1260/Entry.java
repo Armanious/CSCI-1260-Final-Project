@@ -27,8 +27,7 @@ import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.ClassNode;
 
 public class Entry {
-
-	public static void reset(){
+    public static void reset(){
 		output_directory = null;
 		run_output = false;
 
@@ -48,7 +47,7 @@ public class Entry {
 		inline_methods = true;
 		//privates static boolean flow_analysis_optimizations = true;
 	}
-
+    
 	public static void main(String[] args) throws IOException {
 
 		System.out.println(Arrays.toString(args));

@@ -271,6 +271,7 @@ public class LoopOptimizations {
 											//don't need to change it
 										}
 									}
+									
 									indexOfLocalVariable = mi.mn.maxLocals + j;
 									break;
 								}
@@ -295,7 +296,6 @@ public class LoopOptimizations {
 						//System.out.println("Inserting " + toInsertClone.val1 + " into local variable " + indexOfLocalVariable);
 
 						insertBefore(mi.mn.instructions, toInsertClone.val2, toInsertClone.val1.getContiguousBlockSorted(), new VarInsnNode(DataManager.getStoreOpcode(toInsertClone.val1.getType()), indexOfLocalVariable));
-
 						//System.out.println("Loop invariant at " + dm.methodNodeToOwnerMap.get(mi.mn).name + "." + mi.mn.name + mi.mn.desc + ": " + toInsertClone.val1 + ", now stored in " + indexOfLocalVariable + " at the beginning of " + toInsertClone.val2);
 					}
 					numLoopInvariants += invariantRedefinitionLocations.size();
