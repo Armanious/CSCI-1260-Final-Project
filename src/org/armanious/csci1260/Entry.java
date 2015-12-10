@@ -191,7 +191,7 @@ public class Entry {
 		if(run_output){
 			final File fileToUse;
 			if(compress_output){
-				fileToUse = new File(output_directory, "obfuscated.jar");
+				fileToUse = new File(output_directory, file.getName().replace(".jar", "_obfuscated.jar"));
 			}else if(isJar){
 				fileToUse = new File(file.getName().replace(".jar", "_obfuscated.jar"));
 			}else{

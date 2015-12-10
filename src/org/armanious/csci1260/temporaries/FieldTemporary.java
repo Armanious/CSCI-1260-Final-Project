@@ -43,7 +43,7 @@ public class FieldTemporary extends Temporary {
 		this.value = value;
 		this.isVolatile = isVolatile;
 
-		if(getType() != Type.VOID_TYPE){
+		if(getType() == Type.VOID_TYPE){
 			parent.numWrites++;
 		}else{
 			parent.addReference(insn, mn);
@@ -62,7 +62,9 @@ public class FieldTemporary extends Temporary {
 	}
 
 	public int getConstancyInternal() {
-		return parent == null ? (isVolatile ? NOT_CONSTANT : (isConstant ? CONSTANT : (numWrites <= 1 ? CONSTANT : NOT_CONSTANT))) : parent.getConstancyInternal();
+		return parent == null ? 
+				(isVolatile ? NOT_CONSTANT : (isConstant ? CONSTANT : (numWrites <= 1 ? CONSTANT : NOT_CONSTANT))) :
+					parent.getConstancy();
 	}
 
 	public String getOwner(){

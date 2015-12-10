@@ -45,18 +45,16 @@ public abstract class Temporary {
 	}
 
 	public final int getConstancy(){
-		for(Temporary t : getCriticalTemporaries()){
-			if(t.getDeclaration() instanceof VarInsnNode) return NOT_CONSTANT;
-		}
 		return parentTemporary != null ? parentTemporary.getConstancy() : (overrideConstancy ? forcedConstancy : getConstancyInternal());
 	}
 
-	public final void forceConstancy(int forcedConstancy){
+	@Deprecated
+	public final void forceConstancy_(int forcedConstancy){
 		if(parentTemporary == null){
 			overrideConstancy = true;
 			this.forcedConstancy = forcedConstancy;
 		}else{
-			parentTemporary.forceConstancy(forcedConstancy);
+			parentTemporary.forceConstancy_(forcedConstancy);
 		}
 	}
 

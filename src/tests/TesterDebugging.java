@@ -20,7 +20,7 @@ public class TesterDebugging {
 				"obfuscation.name_length=10",
 				"obfuscation.use_obfuscation=true",
 				"optimization.use_optimization=true"};
-		Entry.main(args);
+		//Entry.main(args);
 		
 		f = new File("/Users/david/Desktop/battleship/battleship.jar");
 		args = new String[]{f.toString(), 
@@ -31,7 +31,7 @@ public class TesterDebugging {
 				"obfuscation.name_length=4",
 				"obfuscation.use_obfuscation=false",
 				"optimization.use_optimization=true"};
-		//Entry.main(args);		
+		Entry.main(args);		
 		
 		
 		//System.exit(0);;
@@ -56,7 +56,7 @@ public class TesterDebugging {
 				"obfuscation.name_length=10",
 				"obfuscation.use_obfuscation=true",
 				"optimization.use_optimization=true"};
-		Entry.main(args);
+		//Entry.main(args);
 	}
 
 }

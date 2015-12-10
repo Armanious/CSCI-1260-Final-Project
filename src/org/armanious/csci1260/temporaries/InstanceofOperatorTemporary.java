@@ -19,7 +19,7 @@ public class InstanceofOperatorTemporary extends Temporary {
 	}
 
 	public int getConstancyInternal() {
-		return objectRef.getConstancyInternal();
+		return objectRef.getConstancy();
 	};
 
 	@Override
