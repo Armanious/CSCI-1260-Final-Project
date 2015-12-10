@@ -102,14 +102,6 @@ public abstract class Temporary {
 		return t;
 	}
 
-	public final ArrayList<AbstractInsnNode> getContiguousBlockSortedDebug(){
-		final ArrayList<AbstractInsnNode> list = new ArrayList<>();
-		addRelevantInstructionsToListSorted(list);
-		System.err.println(getDeclaration().getOpcode() >= Opcodes.ILOAD && getDeclaration().getOpcode() <= Opcodes.ALOAD);
-		System.out.println(toString() + " uses instructions: " + list.get(0).getIndex() + " to " + list.get(list.size() - 1).getIndex());
-		return null;
-	}
-
 	public final ArrayList<AbstractInsnNode> getContiguousBlockSorted(){
 		final ArrayList<AbstractInsnNode> list = new ArrayList<>();
 		if(getDeclaration() != null && getDeclaration().getOpcode() >= Opcodes.ILOAD && getDeclaration().getOpcode() <= Opcodes.ALOAD){

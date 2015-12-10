@@ -32,8 +32,8 @@ public class Entry {
 		run_output = false;
 
 		use_obfuscation = true;
-		name_pattern = "Il1";
-		name_length = 8;
+		name_pattern = "Il";
+		name_length = 10;
 		//private static String name_overflow_pattern = "lI";
 		//private static boolean use_names_linearly = false;
 		preserve_package_structure = true;

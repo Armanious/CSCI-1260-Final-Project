@@ -34,7 +34,7 @@ public class RedundantComputationRemover {
 			for(MethodNode mn : cn.methods){
 				MethodInformation mi = dm.methodInformations.get(mn);
 				if(mi == null) continue;
-				System.out.println(cn.name + "." + mn.name + mn.desc);
+				//System.out.println(cn.name + "." + mn.name + mn.desc);
 
 				final int size = mi.temporaries.size();
 				final Temporary[] arr = mi.temporaries.values().toArray(new Temporary[size]);
@@ -72,7 +72,7 @@ public class RedundantComputationRemover {
 	}
 
 	public void optimizeLegacy(){
-		System.out.println("Optimizing redundant computations");
+		//System.out.println("Optimizing redundant computations");
 		//TODO
 		//Do DFS search and sort temporaries per basic block in descending order according to length,
 		//store in Map<Temporary, Integer> sorted by the keys
@@ -104,7 +104,7 @@ public class RedundantComputationRemover {
 							}
 
 							mi.mn.instructions.insertBefore(toInsertBefore, new VarInsnNode(DataManager.getLoadOpcode(t1.getType()), mi.mn.maxLocals));
-							System.out.println("Made change");
+							//System.out.println("Made change");
 							mi.mn.maxLocals++;
 						}
 					}
